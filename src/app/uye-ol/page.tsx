@@ -6,7 +6,7 @@ import { Suspense, useState } from "react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { loginBasic, loginWithGoogleIdToken, registerBasic } from "@/lib/authApi";
-import { setClientAccessToken, setStoredAuthUser } from "@/lib/authSession";
+import { setClientAccessToken, setClientRefreshToken, setStoredAuthUser } from "@/lib/authSession";
 
 function UyeOlPageContent() {
   const router = useRouter();
@@ -47,6 +47,7 @@ function UyeOlPageContent() {
     try {
       const res = await loginWithGoogleIdToken(idToken);
       if (res.accessToken) setClientAccessToken(res.accessToken);
+      if (res.refreshToken) setClientRefreshToken(res.refreshToken);
       setStoredAuthUser({
         userId: res.userId,
         email: res.email,

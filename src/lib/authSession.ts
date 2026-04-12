@@ -57,10 +57,41 @@ export function readUserIdFromJwt(token: string): number | null {
   }
 }
 
+const REFRESH_COOKIE_KEYS = [
+  "refresh_token",
+  "refreshToken",
+  "algory_refresh_token",
+] as const;
+
+function setClientCookie(name: string, value: string, maxAgeSeconds: number) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
+}
+
+/** Access JWT: mevcut isimler + gateway’in okuduğu {@code algory_access_token}. */
 export function setClientAccessToken(token: string, days = 7) {
   if (typeof document === "undefined" || !token) return;
   const maxAge = Math.max(60, Math.floor(days * 24 * 60 * 60));
-  document.cookie = `access_token=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; samesite=lax`;
+  setClientCookie("access_token", token, maxAge);
+  setClientCookie("accessToken", token, maxAge);
+  setClientCookie("algory_access_token", token, maxAge);
+}
+
+/** Refresh token: rent-fe / gateway ile aynı çerez adları (httpOnly değil; JS’ten set). */
+export function setClientRefreshToken(token: string, days = 30) {
+  if (typeof document === "undefined" || !token) return;
+  const maxAge = Math.max(60, Math.floor(days * 24 * 60 * 60));
+  setClientCookie("refresh_token", token, maxAge);
+  setClientCookie("refreshToken", token, maxAge);
+  setClientCookie("algory_refresh_token", token, maxAge);
+}
+
+export function getClientRefreshToken(): string | null {
+  if (typeof document === "undefined") return null;
+  for (const k of REFRESH_COOKIE_KEYS) {
+    const v = getCookieByName(k);
+    if (v) return v;
+  }
+  return null;
 }
 
 export function clearClientAuthSession() {
