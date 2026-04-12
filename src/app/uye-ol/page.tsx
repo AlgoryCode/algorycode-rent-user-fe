@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { loginBasic, loginWithGoogleIdToken, registerBasic } from "@/lib/authApi";
 import { setClientAccessToken, setStoredAuthUser } from "@/lib/authSession";
 
-export default function UyeOlPage() {
+function UyeOlPageContent() {
   const router = useRouter();
   const sp = useSearchParams();
   const [fullName, setFullName] = useState("");
@@ -107,5 +107,23 @@ export default function UyeOlPage() {
         </p>
       </main>
     </SiteLayout>
+  );
+}
+
+export default function UyeOlPage() {
+  return (
+    <Suspense
+      fallback={
+        <SiteLayout>
+          <main className="mx-auto w-full max-w-md px-4 pb-20 pt-28 sm:px-6">
+            <div className="h-8 w-36 animate-pulse rounded bg-border-subtle" />
+            <div className="mt-4 h-4 w-full max-w-sm animate-pulse rounded bg-border-subtle" />
+            <div className="mt-8 h-72 animate-pulse rounded-xl bg-border-subtle/60" />
+          </main>
+        </SiteLayout>
+      }
+    >
+      <UyeOlPageContent />
+    </Suspense>
   );
 }

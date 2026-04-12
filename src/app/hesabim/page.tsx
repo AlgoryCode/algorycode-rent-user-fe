@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -27,7 +27,7 @@ import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/r
 import { compareIso } from "@/lib/calendarGrid";
 import { formatTrDate } from "@/lib/dates";
 
-export default function HesabimPage() {
+function HesabimPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -131,13 +131,13 @@ export default function HesabimPage() {
         const localRequests = readLocalReservationSnapshots();
         const mappedRentals = (Array.isArray(rentalsRaw) ? rentalsRaw : [])
           .map((x, i) => mapReservationRow(x, "rental", i))
-          .filter((x): x is ReservationRow => Boolean(x))
+          .filter((x): x is ReservationRow => x !== null)
           .filter((x) => matchesUserIdentity(x, identity));
         const mappedRequests = [
           ...(Array.isArray(requestsRaw) ? requestsRaw : []).map((x, i) => mapReservationRow(x, "request", i)),
           ...localRequests,
         ]
-          .filter((x): x is ReservationRow => Boolean(x))
+          .filter((x): x is ReservationRow => x !== null)
           .filter((x) => matchesUserIdentity(x, identity));
 
         const uniqueRequests = Array.from(new Map(mappedRequests.map((r) => [r.referenceNo || r.id, r])).values());
@@ -486,6 +486,24 @@ export default function HesabimPage() {
   );
 }
 
+export default function HesabimPage() {
+  return (
+    <Suspense
+      fallback={
+        <SiteLayout>
+          <main className="mx-auto max-w-xl px-4 pb-20 pt-28 sm:px-6">
+            <div className="h-8 w-36 animate-pulse rounded bg-border-subtle" />
+            <div className="mt-4 h-4 w-full max-w-md animate-pulse rounded bg-border-subtle" />
+            <div className="mt-8 h-72 animate-pulse rounded-xl bg-border-subtle/60" />
+          </main>
+        </SiteLayout>
+      }
+    >
+      <HesabimPageContent />
+    </Suspense>
+  );
+}
+
 type ReservationRow = {
   id: string;
   kind: "rental" | "request";
@@ -574,31 +592,30 @@ function readLocalReservationSnapshots(): ReservationRow[] {
   try {
     const raw = window.localStorage.getItem("rent.user.reservation.requests");
     const list = raw ? (JSON.parse(raw) as unknown[]) : [];
-    return list
-      .map((x, i) => {
-        const obj = asObj(x);
-        const ref = getString(obj, ["referenceNo"]);
-        const startDate = normalizeIsoLike(getString(obj, ["startDate"]));
-        const endDate = normalizeIsoLike(getString(obj, ["endDate"]));
-        if (!startDate || !endDate) return null;
-        return {
-          id: getString(obj, ["referenceNo", "id"]) || `local-${i}`,
-          kind: "request" as const,
-          status: getString(obj, ["status"]) || "TALEP_ALINDI",
-          referenceNo: ref || undefined,
-          vehicleId: getString(obj, ["vehicleId"]) || undefined,
-          vehicleName: getString(obj, ["vehicleName"]) || "Araç",
-          vehicleBrand: getString(obj, ["vehicleBrand"]) || "-",
-          plate: getString(obj, ["plate"]) || undefined,
-          startDate,
-          endDate,
-          createdAt: normalizeIsoLike(getString(obj, ["createdAt"])) || startDate,
-          customerEmail: getString(obj, ["customerEmail"]) || undefined,
-          customerPhone: getString(obj, ["customerPhone"]) || undefined,
-          customerName: getString(obj, ["customerName"]) || undefined,
-        };
-      })
-      .filter((x): x is ReservationRow => Boolean(x));
+    return list.flatMap((x, i): ReservationRow[] => {
+      const obj = asObj(x);
+      const ref = getString(obj, ["referenceNo"]);
+      const startDate = normalizeIsoLike(getString(obj, ["startDate"]));
+      const endDate = normalizeIsoLike(getString(obj, ["endDate"]));
+      if (!startDate || !endDate) return [];
+      const row: ReservationRow = {
+        id: getString(obj, ["referenceNo", "id"]) || `local-${i}`,
+        kind: "request",
+        status: getString(obj, ["status"]) || "TALEP_ALINDI",
+        referenceNo: ref || undefined,
+        vehicleId: getString(obj, ["vehicleId"]) || undefined,
+        vehicleName: getString(obj, ["vehicleName"]) || "Araç",
+        vehicleBrand: getString(obj, ["vehicleBrand"]) || "-",
+        plate: getString(obj, ["plate"]) || undefined,
+        startDate,
+        endDate,
+        createdAt: normalizeIsoLike(getString(obj, ["createdAt"])) || startDate,
+        customerEmail: getString(obj, ["customerEmail"]) || undefined,
+        customerPhone: getString(obj, ["customerPhone"]) || undefined,
+        customerName: getString(obj, ["customerName"]) || undefined,
+      };
+      return [row];
+    });
   } catch {
     return [];
   }

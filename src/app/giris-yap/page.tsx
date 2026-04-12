@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { loginBasic, loginWithGoogleIdToken } from "@/lib/authApi";
 import { setClientAccessToken, setStoredAuthUser } from "@/lib/authSession";
 
-export default function GirisYapPage() {
+function GirisYapPageContent() {
   const router = useRouter();
   const sp = useSearchParams();
   const [email, setEmail] = useState("");
@@ -88,5 +88,23 @@ export default function GirisYapPage() {
         </p>
       </main>
     </SiteLayout>
+  );
+}
+
+export default function GirisYapPage() {
+  return (
+    <Suspense
+      fallback={
+        <SiteLayout>
+          <main className="mx-auto w-full max-w-md px-4 pb-20 pt-28 sm:px-6">
+            <div className="h-8 w-40 animate-pulse rounded bg-border-subtle" />
+            <div className="mt-4 h-4 w-full max-w-sm animate-pulse rounded bg-border-subtle" />
+            <div className="mt-8 h-64 animate-pulse rounded-xl bg-border-subtle/60" />
+          </main>
+        </SiteLayout>
+      }
+    >
+      <GirisYapPageContent />
+    </Suspense>
   );
 }
