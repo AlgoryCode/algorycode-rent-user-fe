@@ -1,0 +1,19 @@
+name: Local Config
+version: 1.0.0
+schema: v1
+models:
+  - name: Qwen 2.5
+    provider: ollama
+    model: qwen2.5-coder:3b
+  - name: GPT-4o
+    provider: openai
+    model: gpt-4o
+    apiKey: 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
+  - name: GPT-4o Mini
+    provider: openai
+    model: gpt-4o-mini
+    apiKey: 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
+  - name: GPT-5.3 Codex
+    provider: openai
+    model: gpt-5.3-codex
+    apiKey: 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
