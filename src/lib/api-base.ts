@@ -1,21 +1,19 @@
 /**
- * Tüm harici API çağrıları bu modüldeki köklerden türetilir.
+ * `NEXT_PUBLIC_BASE_API_URL` **doluysa:** gateway kökü kabul edilir → auth `{base}/authservice`, rent `{base}/rent`.
  *
- * **Öncelik:** `NEXT_PUBLIC_BASE_API_URL` doluysa gateway kökü olarak kullanılır (sondaki `/` atılır).
- * Boşsa `NEXT_PUBLIC_API_BASE_MODE` (yalnızca açıkça set edilmişse); aksi halde `next dev` → `local`, prod build → `prod-gateway`.
+ * **Boşsa:**
+ * - `next dev` → doğrudan servisler (auth `8099`, rent `8090`), gateway açmana gerek yok.
+ * - production build → `https://gateway.algorycode.com` + aynı path kuralı.
  *
- * | Mod               | Davranış |
- * |-------------------|----------|
- * | `prod-gateway`    | `baseProdGatewayUrl` + `/authservice` / `/rent` |
- * | `prod-direct`     | `baseProdUrl` (rent), auth `baseProdDirectAuthUrl` |
- * | `local`           | `baseLocalUrl` (rent), auth `baseLocalAuthUrl` |
- * | `local-gateway`   | `baseLocalGatewayUrl` + `/authservice` / `/rent` |
- *
- * **Prod:** `NODE_ENV === "production"` iken `local` / `local-gateway` ve localhost içeren base/auth/rent override’ları
- * yok sayılır (yanlışlıkla `.env.local` ile alınmış build’ler için).
+ * Yerelde gateway üzerinden denemek için: `NEXT_PUBLIC_BASE_API_URL=http://localhost:8072`
+ * Prod’da yanlışlıkla localhost gömülürse üretim gateway kökü kullanılır.
  */
 
 const stripTrailingSlash = (s: string) => s.replace(/\/+$/, "");
+
+const defaultLocalAuth = "http://localhost:8099";
+const defaultLocalRent = "http://localhost:8090";
+const defaultProdGateway = "https://gateway.algorycode.com";
 
 function isLoopbackHttpUrl(url: string): boolean {
   try {
@@ -26,93 +24,46 @@ function isLoopbackHttpUrl(url: string): boolean {
   }
 }
 
-const isProdBuild = () => process.env.NODE_ENV === "production";
-
-/** Prod’da yanlış gömülü localhost köklerini kullanma. */
-function effectiveEnvUrl(value: string | undefined): string | undefined {
-  const v = value?.trim();
-  if (!v) return undefined;
-  if (isProdBuild() && isLoopbackHttpUrl(v)) return undefined;
-  return v;
+/** Açıkça verilen kök = gateway host’u (path’ler kodda eklenir). */
+function hasExplicitGatewayBase(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_BASE_API_URL?.trim());
 }
 
-/** Üretim API Gateway kökü (ör. `https://api.sizin-domain.com`). */
-export const baseProdGatewayUrl = "https://gateway.algorycode.com";
-
-/** Üretimde rent servisine doğrudan kök (gateway yok). */
-export const baseProdUrl = "https://rental.algorycode.com";
-
-/** Üretimde auth servisine doğrudan kök (`prod-direct` modunda). */
-export const baseProdDirectAuthUrl = "https://auth.algorycode.com";
-
-/** Yerelde rent servisi. */
-export const baseLocalUrl = "http://localhost:8090";
-
-/** Yerelde auth servisi (`local` modunda). */
-export const baseLocalAuthUrl = "http://localhost:8099";
-
-/** Yerel Spring Cloud Gateway (GatewayServer `server.port`). */
-export const baseLocalGatewayUrl = "http://localhost:8072";
-
-export type ApiBaseMode = "prod-gateway" | "prod-direct" | "local" | "local-gateway";
-
-function resolveMode(): ApiBaseMode {
-  const raw = process.env.NEXT_PUBLIC_API_BASE_MODE?.trim().toLowerCase();
-  let mode: ApiBaseMode;
-  if (raw === "prod-gateway" || raw === "prod-direct" || raw === "local" || raw === "local-gateway") {
-    mode = raw;
-  } else {
-    mode = process.env.NODE_ENV === "development" ? "local" : "prod-gateway";
+function resolveGatewayBase(): string {
+  const raw = process.env.NEXT_PUBLIC_BASE_API_URL?.trim();
+  if (raw) {
+    const url = stripTrailingSlash(raw);
+    if (process.env.NODE_ENV === "production" && isLoopbackHttpUrl(url)) {
+      return stripTrailingSlash(defaultProdGateway);
+    }
+    return url;
   }
-  if (isProdBuild() && (mode === "local" || mode === "local-gateway")) {
-    return "prod-gateway";
-  }
-  return mode;
+  return stripTrailingSlash(defaultProdGateway);
 }
 
-/** Tek kök: gateway host veya doğrudan rent host (moda göre). */
+/**
+ * Gateway kökü (yalnızca gateway layout’unda anlamlı).
+ * `next dev` + BASE boşken rent host’u döner (tek “API host” önizlemesi için).
+ */
 export function resolveBaseApiUrl(): string {
-  const override = effectiveEnvUrl(process.env.NEXT_PUBLIC_BASE_API_URL);
-  if (override) return stripTrailingSlash(override);
-  const mode = resolveMode();
-  switch (mode) {
-    case "prod-gateway":
-      return stripTrailingSlash(baseProdGatewayUrl);
-    case "prod-direct":
-      return stripTrailingSlash(baseProdUrl);
-    case "local":
-      return stripTrailingSlash(baseLocalUrl);
-    case "local-gateway":
-      return stripTrailingSlash(baseLocalGatewayUrl);
-    default:
-      return stripTrailingSlash(baseProdGatewayUrl);
+  if (hasExplicitGatewayBase() || process.env.NODE_ENV !== "development") {
+    return resolveGatewayBase();
   }
+  return stripTrailingSlash(defaultLocalRent);
 }
 
-/** `resolveBaseApiUrl` ile aynı; tek yerden import için. */
 export const baseApiUrl = resolveBaseApiUrl();
 
-/** Auth istekleri kökü (sonunda `/` yok). Gateway modunda `…/authservice`. */
 export function getAuthApiRoot(): string {
-  const override = effectiveEnvUrl(process.env.NEXT_PUBLIC_AUTH_API_BASE);
-  if (override) return stripTrailingSlash(override);
-  const mode = resolveMode();
-  if (mode === "prod-gateway" || mode === "local-gateway") {
-    return `${resolveBaseApiUrl()}/authservice`;
+  if (hasExplicitGatewayBase() || process.env.NODE_ENV !== "development") {
+    return `${resolveGatewayBase()}/authservice`;
   }
-  if (mode === "prod-direct") return stripTrailingSlash(baseProdDirectAuthUrl);
-  return stripTrailingSlash(baseLocalAuthUrl);
+  return stripTrailingSlash(defaultLocalAuth);
 }
 
-/** Rent istekleri kökü (sonunda `/` yok). Gateway modunda `…/rent`. */
 export function getRentApiRoot(): string {
-  const override = effectiveEnvUrl(process.env.NEXT_PUBLIC_RENT_API_BASE);
-  if (override) return stripTrailingSlash(override);
-  const legacy = effectiveEnvUrl(process.env.NEXT_PUBLIC_RENTAL_REQUEST_API_BASE);
-  if (legacy) return stripTrailingSlash(legacy);
-  const mode = resolveMode();
-  if (mode === "prod-gateway" || mode === "local-gateway") {
-    return `${resolveBaseApiUrl()}/rent`;
+  if (hasExplicitGatewayBase() || process.env.NODE_ENV !== "development") {
+    return `${resolveGatewayBase()}/rent`;
   }
-  return resolveBaseApiUrl();
+  return stripTrailingSlash(defaultLocalRent);
 }
