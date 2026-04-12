@@ -398,9 +398,27 @@ function HesabimPageContent() {
                       </article>
                     ))}
                     {(reservationTab === "gecmis" ? filteredRentals : filteredRequests).length === 0 && (
-                      <p className="rounded-lg border border-border-subtle/80 bg-bg-raised/20 px-3 py-2 text-sm text-text-muted">
-                        Bu filtrelerde sonuç bulunamadı.
-                      </p>
+                      <div className="rounded-lg border border-border-subtle/80 bg-bg-raised/20 px-3 py-4 text-center">
+                        {rentalRows.length === 0 && requestRows.length === 0 ? (
+                          <>
+                            <div className="text-4xl mb-2">🚗</div>
+                            <p className="text-sm font-medium text-text mb-2">Henüz hiç rezervasyonunuz bulunmuyor</p>
+                            <p className="text-xs text-text-muted mb-3">
+                              Hayalinizdeki aracı keşfedin ve unutulmaz bir yolculuğa adım atın!
+                            </p>
+                            <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent/90">
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              Araçları Keşfet
+                            </Link>
+                          </>
+                        ) : (
+                          <p className="text-sm text-text-muted">
+                            Bu filtrelerde sonuç bulunamadı.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

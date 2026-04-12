@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { ToastProvider } from "@/components/ui/ToastProvider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -31,7 +31,8 @@ export default function RootLayout({
           {themeInit}
         </Script>
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

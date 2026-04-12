@@ -17,6 +17,7 @@ function UyeOlPageContent() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const next = sp.get("next") || "/";
 
@@ -32,15 +33,7 @@ function UyeOlPageContent() {
         phoneNumber: phone.trim() || undefined,
         password,
       });
-      const login = await loginBasic(email.trim(), password);
-      if (login.accessToken) setClientAccessToken(login.accessToken);
-      setStoredAuthUser({
-        userId: login.userId,
-        email: login.email || email.trim(),
-        phone: phone.trim() || undefined,
-        fullName: [login.firstName, login.lastName].filter(Boolean).join(" ").trim() || fullName.trim(),
-      });
-      router.push(next);
+      setSuccess(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Üyelik oluşturulamadı.");
     } finally {
@@ -73,38 +66,57 @@ function UyeOlPageContent() {
         <h1 className="text-2xl font-semibold text-text">Üye Ol</h1>
         <p className="mt-2 text-sm text-text-muted">Hızlı rezervasyon ve geçmiş işlemler için hesap oluşturun.</p>
 
-        <form className="mt-8 space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4" onSubmit={(e) => { e.preventDefault(); void onRegister(); }}>
-          <label className="block text-xs font-medium text-text-muted">
-            Ad Soyad
-            <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          </label>
-          <label className="block text-xs font-medium text-text-muted">
-            E-posta
-            <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <label className="block text-xs font-medium text-text-muted">
-            Telefon (opsiyonel)
-            <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </label>
-          <label className="block text-xs font-medium text-text-muted">
-            Şifre
-            <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </label>
-          <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
-        </form>
-
-        <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-bg-card/60 p-4">
-          <p className="text-xs font-medium text-text-muted">Google ile devam et</p>
-          <div className="flex justify-center">
-            <GoogleSignInButton onCredential={(t) => void onGoogle(t)} disabled={loading} />
+        {success ? (
+          <div className="mt-8 space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4 text-center">
+            <div className="text-green-600">
+              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-text">Başarılı!</h2>
+            <p className="text-sm text-text-muted">Başarıyla kaydınız oluşturuldu. Giriş yapabilirsiniz.</p>
+            <Link href={`/giris-yap?next=${encodeURIComponent(next)}`} className="inline-block w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white">
+              Giriş Yap
+            </Link>
           </div>
-        </div>
+        ) : (
+          <form className="mt-8 space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4" onSubmit={(e) => { e.preventDefault(); void onRegister(); }}>
+            <label className="block text-xs font-medium text-text-muted">
+              Ad Soyad
+              <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </label>
+            <label className="block text-xs font-medium text-text-muted">
+              E-posta
+              <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </label>
+            <label className="block text-xs font-medium text-text-muted">
+              Telefon (opsiyonel)
+              <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </label>
+            <label className="block text-xs font-medium text-text-muted">
+              Şifre
+              <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+            <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
+          </form>
+        )}
+
+        {!success && (
+          <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-bg-card/60 p-4">
+            <p className="text-xs font-medium text-text-muted">Google ile devam et</p>
+            <div className="flex justify-center">
+              <GoogleSignInButton onCredential={(t) => void onGoogle(t)} disabled={loading} />
+            </div>
+          </div>
+        )}
 
         {error && <p className="mt-3 text-xs text-rose-300">{error}</p>}
 
-        <p className="mt-4 text-xs text-text-muted">
-          Zaten hesabın var mı? <Link className="text-accent" href={`/giris-yap?next=${encodeURIComponent(next)}`}>Giriş Yap</Link>
-        </p>
+        {!success && (
+          <p className="mt-4 text-xs text-text-muted">
+            Zaten hesabın var mı? <Link className="text-accent" href={`/giris-yap?next=${encodeURIComponent(next)}`}>Giriş Yap</Link>
+          </p>
+        )}
       </main>
     </SiteLayout>
   );

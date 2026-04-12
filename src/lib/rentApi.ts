@@ -1,9 +1,9 @@
-const RENT_API_BASE = process.env.NEXT_PUBLIC_RENTAL_REQUEST_API_BASE || "https://rental.algorycode.com";
+import { getRentApiRoot } from "@/lib/api-base";
 
 type ApiMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 async function apiRequest<T>(path: string, method: ApiMethod, body?: unknown): Promise<T> {
-  const res = await fetch(`${RENT_API_BASE}${path}`, {
+  const res = await fetch(`${getRentApiRoot()}${path}`, {
     method,
     headers: {
       Accept: "application/json",
@@ -195,7 +195,7 @@ export async function generateRentalRequestContractOnRentApi(id: string) {
 }
 
 export async function fetchRentalRequestContractPdfBlobFromRentApi(id: string) {
-  const res = await fetch(`${RENT_API_BASE}/rental-requests/${encodeURIComponent(id)}/contract.pdf`, {
+  const res = await fetch(`${getRentApiRoot()}/rental-requests/${encodeURIComponent(id)}/contract.pdf`, {
     headers: { Accept: "application/pdf" },
     cache: "no-store",
   });

@@ -15,13 +15,13 @@ const links = [
 ];
 
 export function Header() {
-  const [isAuthed, setIsAuthed] = useState(() =>
-    typeof document !== "undefined" ? hasClientAuthToken() : false,
-  );
+  /** SSR ile ilk istemci boyaması aynı olmalı; oturum bilgisi mount sonrası okunur. */
+  const [isAuthed, setIsAuthed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const initials = useMemo(() => {
+    if (!isAuthed) return "U";
     const user = getStoredAuthUser();
     const fullName = user?.fullName?.trim();
     if (fullName) {
@@ -30,6 +30,10 @@ export function Header() {
     }
     if (user?.email) return user.email[0]?.toUpperCase() ?? "U";
     return "U";
+  }, [isAuthed]);
+
+  useEffect(() => {
+    setIsAuthed(hasClientAuthToken());
   }, []);
 
   useEffect(() => {

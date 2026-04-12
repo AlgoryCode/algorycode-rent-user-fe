@@ -1,4 +1,15 @@
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_BASE || "https://auth.algorycode.com";
+import { getAuthApiRoot } from "@/lib/api-base";
+import { parseAuthServiceError } from "@/lib/authError";
+
+/** Kayıtta gönderilebilir `registrationRole` değerleri (AuthService `RegistrationRole` enum ile aynı adlar). */
+export type RegistrationRoleCode =
+  | "USER"
+  | "RENT_USER"
+  | "RENT_MANAGER"
+  | "RENT_ADMIN"
+  | "QR_USER"
+  | "QR_MANAGER"
+  | "QR_ADMIN";
 
 export type MyProfileResponse = {
   userId: number;
@@ -44,14 +55,24 @@ export type TokenResponse = {
   lastName?: string;
 };
 
+async function readAuthFailureMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return `Auth API error (${res.status})`;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return parseAuthServiceError(parsed) || text;
+  } catch {
+    return text.trim() || `Auth API error (${res.status})`;
+  }
+}
+
 async function authJson<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(`${AUTH_API_BASE}${path}`, {
+  const res = await fetch(`${getAuthApiRoot()}${path}`, {
     ...init,
     cache: "no-store",
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Auth API error (${res.status})`);
+    throw new Error(await readAuthFailureMessage(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -78,12 +99,29 @@ export async function registerBasic(payload: {
   email: string;
   password: string;
   phoneNumber?: string;
-}) {
-  return postJson<unknown>("/basicauth/register", {
-    ...payload,
-    roles: "USER",
-    provider: "BASIC",
+  /** AuthService kayıt rolü; verilmezse kiralama portalı için {@code RENT_USER}. */
+  registrationRole?: RegistrationRoleCode;
+}): Promise<void> {
+  const body = {
+    email: payload.email,
+    password: payload.password,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    phoneNumber: payload.phoneNumber,
+    registrationRole: payload.registrationRole ?? "RENT_USER",
+  };
+  const res = await fetch(`${getAuthApiRoot()}/basicauth/register`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
   });
+  if (!res.ok) {
+    throw new Error(await readAuthFailureMessage(res));
+  }
 }
 
 export async function loginWithGoogleIdToken(idToken: string) {
