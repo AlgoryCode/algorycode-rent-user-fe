@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { clearRentFeRolesCookie } from "@/lib/rbac/role-cookie";
+
 export async function POST() {
   const response = NextResponse.json({ ok: true });
   const clearCookieOptions = {
@@ -14,5 +16,6 @@ export async function POST() {
   response.cookies.set("accessToken", "", clearCookieOptions);
   response.cookies.set("refreshToken", "", clearCookieOptions);
   response.cookies.set("algory_2fa_pending", "", clearCookieOptions);
+  clearRentFeRolesCookie(response);
   return response;
 }

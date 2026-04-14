@@ -53,6 +53,10 @@ export type TokenResponse = {
   email?: string;
   firstName?: string;
   lastName?: string;
+  /** AuthService yanıtında varsa rol çerezi senkronu için kullanılır (JWT ile birleştirilir). */
+  roles?: string[];
+  role?: string;
+  authorities?: string[];
 };
 
 function parseJsonResponse(text: string): unknown {

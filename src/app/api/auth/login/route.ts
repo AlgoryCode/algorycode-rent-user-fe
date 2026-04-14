@@ -6,6 +6,7 @@ import {
   TWO_FACTOR_PENDING_COOKIE_MAX_AGE_SECONDS,
   getAuthUpstreamUrl,
 } from "@/lib/auth-upstream";
+import { applyRentFeRolesCookie } from "@/lib/rbac/role-cookie";
 
 type LoginBody = {
   email?: string;
@@ -95,6 +96,9 @@ export async function POST(req: Request) {
     if (typeof refreshToken === "string" && refreshToken) {
       response.cookies.set("algory_refresh_token", refreshToken, cookieOpts);
       response.cookies.set("refreshToken", refreshToken, cookieOpts);
+    }
+    if (typeof accessToken === "string" && accessToken) {
+      applyRentFeRolesCookie(response, accessToken, data as Record<string, unknown>);
     }
     return response;
   } catch {

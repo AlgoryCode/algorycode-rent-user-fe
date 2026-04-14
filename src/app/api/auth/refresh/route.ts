@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
 import { COOKIE_MAX_AGE_SECONDS, getAuthUpstreamUrl } from "@/lib/auth-upstream";
+import { applyRentFeRolesCookie, clearRentFeRolesCookie } from "@/lib/rbac/role-cookie";
 
 export async function POST() {
   try {
@@ -23,6 +24,7 @@ export async function POST() {
       res.cookies.set("algory_refresh_token", "", clearOpts);
       res.cookies.set("accessToken", "", clearOpts);
       res.cookies.set("refreshToken", "", clearOpts);
+      clearRentFeRolesCookie(res);
       return res;
     }
 
@@ -64,6 +66,7 @@ export async function POST() {
         response.cookies.set("algory_refresh_token", "", clearCookieOptions);
         response.cookies.set("accessToken", "", clearCookieOptions);
         response.cookies.set("refreshToken", "", clearCookieOptions);
+        clearRentFeRolesCookie(response);
       }
       return response;
     }
@@ -88,6 +91,9 @@ export async function POST() {
     if (newRefresh) {
       response.cookies.set("algory_refresh_token", newRefresh, cookieOpts);
       response.cookies.set("refreshToken", newRefresh, cookieOpts);
+    }
+    if (accessToken) {
+      applyRentFeRolesCookie(response, accessToken, data as Record<string, unknown>);
     }
     return response;
   } catch {

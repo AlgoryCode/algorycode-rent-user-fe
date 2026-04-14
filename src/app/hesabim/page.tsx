@@ -97,6 +97,15 @@ function HesabimPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    if (searchParams.get("yetkisiz") !== "1") return;
+    showToast("Bu alan için RENT_MANAGER veya RENT_ADMIN rolü gerekir.", "info");
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("yetkisiz");
+    const q = next.toString();
+    router.replace(q ? `/hesabim?${q}` : "/hesabim", { scroll: false });
+  }, [searchParams, showToast, router]);
+
+  useEffect(() => {
     const load = async () => {
       if (!auth) {
         setLoading(false);

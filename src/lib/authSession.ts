@@ -106,6 +106,7 @@ export function clearLocalAuthProfile() {
       "refreshToken",
       "refresh_token",
       "algory_refresh_token",
+      "rent_fe_roles",
       "token",
       "auth_token",
     ]) {

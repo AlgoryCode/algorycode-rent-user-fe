@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { ArrowRightOnRectangleIcon, CalendarDaysIcon, UserCircleNavIcon } from "@/components/ui/Icons";
+import { useRentFeRoles } from "@/hooks/useRentFeRoles";
 import { fetchHasBffSession } from "@/lib/bff-access-token";
 import { clearClientAuthSession, getStoredAuthUser } from "@/lib/authSession";
+import { getRentManagerNavLinks } from "@/lib/rbac/route-policy";
 
 const links = [
   { href: "/araclar", label: "Araçlar" },
@@ -18,6 +20,8 @@ const links = [
 
 export function Header() {
   const pathname = usePathname();
+  const { hasManagerAccess } = useRentFeRoles();
+  const managerNavLinks = useMemo(() => getRentManagerNavLinks(), []);
   /** SSR ile ilk istemci boyaması aynı olmalı; oturum bilgisi mount sonrası okunur. */
   const [isAuthed, setIsAuthed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,6 +73,17 @@ export function Header() {
               {l.label}
             </Link>
           ))}
+          {isAuthed &&
+            hasManagerAccess &&
+            managerNavLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="rounded-md px-3 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-emerald-100/80 hover:text-slate-900 dark:text-emerald-100/80 dark:hover:bg-emerald-900/45 dark:hover:text-white"
+              >
+                {l.label}
+              </Link>
+            ))}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -109,6 +124,17 @@ export function Header() {
                       <CalendarDaysIcon className="size-[18px] opacity-80" />
                       Rezervasyonlarım
                     </Link>
+                    {hasManagerAccess &&
+                      managerNavLinks.map((l) => (
+                        <Link
+                          key={l.href}
+                          href={l.href}
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-text transition-colors hover:bg-accent/10 hover:text-accent"
+                        >
+                          {l.label}
+                        </Link>
+                      ))}
                     <button
                       type="button"
                       onClick={() => {
