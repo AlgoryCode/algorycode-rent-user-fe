@@ -6,7 +6,8 @@ import { Suspense, useState } from "react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { loginBasic, loginWithGoogleIdToken } from "@/lib/authApi";
-import { setClientAccessToken, setClientRefreshToken, setStoredAuthUser } from "@/lib/authSession";
+import { clearBffBearerCache } from "@/lib/bff-access-token";
+import { setStoredAuthUser } from "@/lib/authSession";
 
 function GirisYapPageContent() {
   const router = useRouter();
@@ -23,8 +24,7 @@ function GirisYapPageContent() {
     setError(null);
     try {
       const res = await loginBasic(email.trim(), password);
-      if (res.accessToken) setClientAccessToken(res.accessToken);
-      if (res.refreshToken) setClientRefreshToken(res.refreshToken);
+      clearBffBearerCache();
       setStoredAuthUser({
         userId: res.userId,
         email: res.email || email.trim(),
@@ -43,8 +43,7 @@ function GirisYapPageContent() {
     setError(null);
     try {
       const res = await loginWithGoogleIdToken(idToken);
-      if (res.accessToken) setClientAccessToken(res.accessToken);
-      if (res.refreshToken) setClientRefreshToken(res.refreshToken);
+      clearBffBearerCache();
       setStoredAuthUser({
         userId: res.userId,
         email: res.email,

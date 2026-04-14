@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -16,13 +16,8 @@ import {
   type MyProfileResponse,
   type TwoFactorSetupResponse,
 } from "@/lib/authApi";
-import {
-  clearClientAuthSession,
-  getClientAccessToken,
-  getStoredAuthUser,
-  readUserIdFromJwt,
-  setStoredAuthUser,
-} from "@/lib/authSession";
+import { resolveBffAccessToken } from "@/lib/bff-access-token";
+import { clearClientAuthSession, getStoredAuthUser, readUserIdFromJwt, setStoredAuthUser } from "@/lib/authSession";
 import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/rentApi";
 import { compareIso } from "@/lib/calendarGrid";
 import { formatTrDate } from "@/lib/dates";
@@ -64,13 +59,34 @@ function HesabimPageContent() {
   const [twoFaCode, setTwoFaCode] = useState("");
   const [twoFaBusy, setTwoFaBusy] = useState(false);
 
-  const auth = useMemo(() => {
-    const accessToken = getClientAccessToken();
-    if (!accessToken) return null;
-    const stored = getStoredAuthUser();
-    const userId = stored?.userId ?? readUserIdFromJwt(accessToken);
-    if (!userId) return null;
-    return { accessToken, userId };
+  const [auth, setAuth] = useState<{ accessToken: string; userId: number } | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const t = await resolveBffAccessToken();
+      if (cancelled) return;
+      if (!t) {
+        setAuth(null);
+        setSessionChecked(true);
+        setLoading(false);
+        return;
+      }
+      const stored = getStoredAuthUser();
+      const userId = stored?.userId ?? readUserIdFromJwt(t);
+      if (!userId) {
+        setAuth(null);
+        setSessionChecked(true);
+        setLoading(false);
+        return;
+      }
+      setAuth({ accessToken: t, userId });
+      setSessionChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -151,6 +167,17 @@ function HesabimPageContent() {
     };
     void loadReservations();
   }, [activeTab, auth, profile]);
+
+  if (!sessionChecked) {
+    return (
+      <SiteLayout>
+        <main className="mx-auto max-w-xl px-4 pb-20 pt-28 text-center sm:px-6">
+          <h1 className="text-2xl font-semibold text-text">Hesabım</h1>
+          <p className="mt-6 text-sm text-text-muted">Oturum kontrol ediliyor…</p>
+        </main>
+      </SiteLayout>
+    );
+  }
 
   if (!auth) {
     return (
@@ -280,8 +307,10 @@ function HesabimPageContent() {
           <button
             type="button"
             onClick={() => {
-              clearClientAuthSession();
-              router.push("/");
+              void (async () => {
+                await clearClientAuthSession();
+                router.push("/");
+              })();
             }}
             className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-text"
           >

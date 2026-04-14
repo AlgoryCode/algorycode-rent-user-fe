@@ -2,10 +2,12 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { ArrowRightOnRectangleIcon, CalendarDaysIcon, UserCircleNavIcon } from "@/components/ui/Icons";
-import { clearClientAuthSession, getStoredAuthUser, hasClientAuthToken } from "@/lib/authSession";
+import { fetchHasBffSession } from "@/lib/bff-access-token";
+import { clearClientAuthSession, getStoredAuthUser } from "@/lib/authSession";
 
 const links = [
   { href: "/araclar", label: "Araçlar" },
@@ -15,6 +17,7 @@ const links = [
 ];
 
 export function Header() {
+  const pathname = usePathname();
   /** SSR ile ilk istemci boyaması aynı olmalı; oturum bilgisi mount sonrası okunur. */
   const [isAuthed, setIsAuthed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,8 +36,8 @@ export function Header() {
   }, [isAuthed]);
 
   useEffect(() => {
-    setIsAuthed(hasClientAuthToken());
-  }, []);
+    void fetchHasBffSession().then(setIsAuthed);
+  }, [pathname]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -109,10 +112,12 @@ export function Header() {
                     <button
                       type="button"
                       onClick={() => {
-                        clearClientAuthSession();
-                        setIsAuthed(false);
-                        setMenuOpen(false);
-                        window.location.href = "/";
+                        void (async () => {
+                          await clearClientAuthSession();
+                          setIsAuthed(false);
+                          setMenuOpen(false);
+                          window.location.href = "/";
+                        })();
                       }}
                       className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-text transition-colors hover:bg-accent/10 hover:text-accent"
                     >

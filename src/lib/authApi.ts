@@ -1,5 +1,5 @@
-import { getAuthApiRoot } from "@/lib/api-base";
 import { parseAuthServiceError } from "@/lib/authError";
+import { getAuthGatewayAxios } from "@/lib/gatewayAxios";
 
 /** Kayıtta gönderilebilir `registrationRole` değerleri (AuthService `RegistrationRole` enum ile aynı adlar). */
 export type RegistrationRoleCode =
@@ -55,42 +55,37 @@ export type TokenResponse = {
   lastName?: string;
 };
 
-async function readAuthFailureMessage(res: Response): Promise<string> {
-  const text = await res.text().catch(() => "");
-  if (!text) return `Auth API error (${res.status})`;
+function parseJsonResponse(text: string): unknown {
+  if (!text.trim()) return {};
   try {
-    const parsed = JSON.parse(text) as unknown;
-    return parseAuthServiceError(parsed) || text;
+    return JSON.parse(text) as unknown;
   } catch {
-    return text.trim() || `Auth API error (${res.status})`;
+    return { message: text };
   }
 }
 
-async function authJson<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(`${getAuthApiRoot()}${path}`, {
-    ...init,
+function messageFromUnknown(data: unknown, fallback: string): string {
+  if (typeof data === "string" && data.trim()) return data.trim();
+  if (data != null && typeof data === "object") {
+    return parseAuthServiceError(data) || fallback;
+  }
+  return fallback;
+}
+
+export async function loginBasic(email: string, password: string): Promise<TokenResponse> {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim(), password }),
+    credentials: "same-origin",
     cache: "no-store",
   });
+  const text = await res.text();
+  const data = parseJsonResponse(text);
   if (!res.ok) {
-    throw new Error(await readAuthFailureMessage(res));
+    throw new Error(messageFromUnknown(data, `Giriş başarısız (${res.status})`));
   }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  return authJson<T>(path, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-}
-
-export async function loginBasic(email: string, password: string) {
-  return postJson<TokenResponse>("/basicauth/login", { email, password });
+  return data as TokenResponse;
 }
 
 export async function registerBasic(payload: {
@@ -99,7 +94,6 @@ export async function registerBasic(payload: {
   email: string;
   password: string;
   phoneNumber?: string;
-  /** AuthService kayıt rolü; verilmezse kiralama portalı için {@code RENT_USER}. */
   registrationRole?: RegistrationRoleCode;
 }): Promise<void> {
   const body = {
@@ -110,82 +104,102 @@ export async function registerBasic(payload: {
     phoneNumber: payload.phoneNumber,
     registrationRole: payload.registrationRole ?? "RENT_USER",
   };
-  const res = await fetch(`${getAuthApiRoot()}/basicauth/register`, {
+  const res = await fetch("/api/auth/register", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "same-origin",
     cache: "no-store",
   });
+  const text = await res.text();
+  const data = parseJsonResponse(text);
   if (!res.ok) {
-    throw new Error(await readAuthFailureMessage(res));
+    throw new Error(messageFromUnknown(data, `Kayıt başarısız (${res.status})`));
   }
 }
 
-export async function loginWithGoogleIdToken(idToken: string) {
-  return authJson<TokenResponse>("/google-auth/login", {
+export async function loginWithGoogleIdToken(idToken: string): Promise<TokenResponse> {
+  const res = await fetch("/api/auth/google/login", {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "text/plain",
-    },
+    headers: { Accept: "application/json", "Content-Type": "text/plain" },
     body: idToken,
+    credentials: "same-origin",
+    cache: "no-store",
   });
+  const text = await res.text();
+  const data = parseJsonResponse(text);
+  if (!res.ok) {
+    throw new Error(messageFromUnknown(data, `Google giriş başarısız (${res.status})`));
+  }
+  return data as TokenResponse;
 }
 
-function authHeaders(accessToken: string, userId: number) {
+function userIdHeaders(_accessToken: string, userId: number) {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
     "X-User-Id": String(userId),
   };
 }
 
-export async function fetchMyProfile(accessToken: string, userId: number) {
-  return authJson<MyProfileResponse>("/account/myprofile", {
-    method: "GET",
-    headers: authHeaders(accessToken, userId),
+function formatAuthUserError(status: number, data: unknown): string {
+  if (typeof data === "string") {
+    const t = data.trim();
+    if (!t) return `Auth API error (${status})`;
+    try {
+      return parseAuthServiceError(JSON.parse(t) as unknown) || t;
+    } catch {
+      return t;
+    }
+  }
+  if (data != null && typeof data === "object") {
+    return parseAuthServiceError(data) || `Auth API error (${status})`;
+  }
+  return `Auth API error (${status})`;
+}
+
+async function authUserRequest<T>(
+  method: "GET" | "POST" | "PATCH",
+  path: string,
+  accessToken: string,
+  userId: number,
+  body?: unknown,
+): Promise<T> {
+  const client = getAuthGatewayAxios();
+  const { status, data } = await client.request<T>({
+    method,
+    url: path,
+    headers: userIdHeaders(accessToken, userId),
+    data: body === undefined ? undefined : body,
+    validateStatus: () => true,
   });
+  if (status === 204) return undefined as T;
+  if (status < 200 || status >= 300) {
+    throw new Error(formatAuthUserError(status, data));
+  }
+  return data as T;
+}
+
+export async function fetchMyProfile(accessToken: string, userId: number) {
+  return authUserRequest<MyProfileResponse>("GET", "/account/myprofile", accessToken, userId);
 }
 
 export async function patchMyProfile(accessToken: string, userId: number, payload: MyProfilePatchRequest) {
-  return authJson<MyProfileResponse>("/account/myprofile", {
-    method: "PATCH",
-    headers: authHeaders(accessToken, userId),
-    body: JSON.stringify(payload),
-  });
+  return authUserRequest<MyProfileResponse>("PATCH", "/account/myprofile", accessToken, userId, payload);
 }
 
 export async function changePassword(accessToken: string, userId: number, currentPassword: string, newPassword: string) {
-  return authJson<void>("/account/change-password", {
-    method: "POST",
-    headers: authHeaders(accessToken, userId),
-    body: JSON.stringify({ currentPassword, newPassword }),
-  });
+  return authUserRequest<void>("POST", "/account/change-password", accessToken, userId, { currentPassword, newPassword });
 }
 
 export async function setupTwoFactor(accessToken: string, userId: number) {
-  return authJson<TwoFactorSetupResponse>("/2fa/setup", {
-    method: "POST",
-    headers: authHeaders(accessToken, userId),
-  });
+  return authUserRequest<TwoFactorSetupResponse>("POST", "/2fa/setup", accessToken, userId);
 }
 
 export async function activateTwoFactor(accessToken: string, userId: number, code: string) {
-  return authJson<void>("/2fa/active", {
-    method: "POST",
-    headers: authHeaders(accessToken, userId),
-    body: JSON.stringify({ code }),
-  });
+  return authUserRequest<void>("POST", "/2fa/active", accessToken, userId, { code });
 }
 
 export async function disableTwoFactor(accessToken: string, userId: number, code: string) {
-  return authJson<void>("/2fa/disable", {
-    method: "POST",
-    headers: authHeaders(accessToken, userId),
-    body: JSON.stringify({ code }),
-  });
+  return authUserRequest<void>("POST", "/2fa/disable", accessToken, userId, { code });
 }

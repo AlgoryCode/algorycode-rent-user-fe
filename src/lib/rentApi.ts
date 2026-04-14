@@ -1,25 +1,26 @@
-import { getRentApiRoot } from "@/lib/api-base";
+import { getRentGatewayAxios } from "@/lib/gatewayAxios";
 
 type ApiMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 async function apiRequest<T>(path: string, method: ApiMethod, body?: unknown): Promise<T> {
-  const res = await fetch(`${getRentApiRoot()}${path}`, {
+  const client = getRentGatewayAxios();
+  const { status, data } = await client.request<T>({
+    url: path,
     method,
-    headers: {
-      Accept: "application/json",
-      ...(body != null ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body != null ? JSON.stringify(body) : undefined,
-    cache: "no-store",
+    data: body === undefined ? undefined : body,
+    validateStatus: () => true,
   });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Rent API error (${res.status})`);
+  if (status === 204) return undefined as T;
+  if (status < 200 || status >= 300) {
+    const text =
+      typeof data === "string"
+        ? data
+        : data != null && typeof data === "object" && "message" in data && typeof (data as { message?: string }).message === "string"
+          ? (data as { message: string }).message
+          : JSON.stringify(data ?? "");
+    throw new Error(text || `Rent API error (${status})`);
   }
-
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  return data as T;
 }
 
 export type RentVehicleDto = Record<string, unknown>;
@@ -195,13 +196,22 @@ export async function generateRentalRequestContractOnRentApi(id: string) {
 }
 
 export async function fetchRentalRequestContractPdfBlobFromRentApi(id: string) {
-  const res = await fetch(`${getRentApiRoot()}/rental-requests/${encodeURIComponent(id)}/contract.pdf`, {
+  const client = getRentGatewayAxios();
+  const { status, data } = await client.get<ArrayBuffer>(`/rental-requests/${encodeURIComponent(id)}/contract.pdf`, {
+    responseType: "arraybuffer",
     headers: { Accept: "application/pdf" },
-    cache: "no-store",
+    validateStatus: () => true,
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Rent API error (${res.status})`);
+  if (status < 200 || status >= 300) {
+    let msg = `Rent API error (${status})`;
+    if (data instanceof ArrayBuffer) {
+      try {
+        msg = new TextDecoder().decode(data) || msg;
+      } catch {
+        /* ignore */
+      }
+    }
+    throw new Error(msg);
   }
-  return res.blob();
+  return new Blob([data], { type: "application/pdf" });
 }

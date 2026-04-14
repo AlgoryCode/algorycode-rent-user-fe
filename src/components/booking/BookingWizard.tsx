@@ -13,7 +13,8 @@ import { compareIso } from "@/lib/calendarGrid";
 import { addDays, parseIsoDate, rentalNights, formatTrDate, todayIso, toIsoDate } from "@/lib/dates";
 import { computeRentalSubtotal, crossBorderOneWaySurcharge, vehicleAbroadUsageSurcharge } from "@/lib/pricing";
 import { createRentalRequestOnRentApi } from "@/lib/rentApi";
-import { getStoredAuthUser, hasClientAuthToken } from "@/lib/authSession";
+import { fetchHasBffSession } from "@/lib/bff-access-token";
+import { getStoredAuthUser } from "@/lib/authSession";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { DayPickerPopover } from "@/components/ui/DayPickerPopover";
@@ -144,12 +145,19 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!hasClientAuthToken()) return;
-    const profile = getStoredAuthUser();
-    if (!profile) return;
-    if (profile.email && !email) setEmail(profile.email);
-    if (profile.phone && !phone) setPhone(profile.phone);
-    if (profile.fullName && !fullName) setFullName(profile.fullName);
+    let cancelled = false;
+    void (async () => {
+      const has = await fetchHasBffSession();
+      if (cancelled || !has) return;
+      const profile = getStoredAuthUser();
+      if (!profile) return;
+      if (profile.email && !email) setEmail(profile.email);
+      if (profile.phone && !phone) setPhone(profile.phone);
+      if (profile.fullName && !fullName) setFullName(profile.fullName);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [email, fullName, phone]);
 
   const rentalSub =

@@ -20,7 +20,7 @@ import { ReservationCalendarSupportAside } from "@/components/vehicle/Reservatio
 import { VehicleRentalConditionsCard } from "@/components/vehicle/VehicleRentalConditionsCard";
 import { VehicleRentalPriceDetails } from "@/components/vehicle/VehicleRentalPriceDetails";
 import { VehicleRentalFaqPanel } from "@/components/vehicle/VehicleRentalFaqPanel";
-import { hasClientAuthToken } from "@/lib/authSession";
+import { fetchHasBffSession } from "@/lib/bff-access-token";
 
 const defaultGarageCopy =
   "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
@@ -103,6 +103,11 @@ export function VehicleDetailView({
 
   const [reserveError, setReserveError] = useState<string | null>(null);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [bffSession, setBffSession] = useState(false);
+
+  useEffect(() => {
+    void fetchHasBffSession().then(setBffSession);
+  }, []);
 
   const pushQuery = useCallback(
     (mutate: (q: URLSearchParams) => void) => {
@@ -170,7 +175,7 @@ export function VehicleDetailView({
       return;
     }
     const target = buildReserveHref();
-    if (hasClientAuthToken()) {
+    if (bffSession) {
       router.push(target);
       return;
     }

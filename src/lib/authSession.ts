@@ -1,3 +1,5 @@
+import { clearBffBearerCache } from "@/lib/bff-access-token";
+
 export type AuthUserProfile = {
   userId?: number;
   fullName?: string;
@@ -94,7 +96,8 @@ export function getClientRefreshToken(): string | null {
   return null;
 }
 
-export function clearClientAuthSession() {
+/** Eski (httpOnly olmayan) çerezleri ve local profili temizler. */
+export function clearLocalAuthProfile() {
   if (typeof document !== "undefined") {
     for (const k of [
       "access_token",
@@ -112,6 +115,15 @@ export function clearClientAuthSession() {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(USER_STORAGE_KEY);
   }
+  clearBffBearerCache();
+}
+
+/** BFF httpOnly çerezlerini sunucuda siler + yerel profil. */
+export async function clearClientAuthSession(): Promise<void> {
+  if (typeof window !== "undefined") {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
+  }
+  clearLocalAuthProfile();
 }
 
 export function setStoredAuthUser(profile: AuthUserProfile) {
