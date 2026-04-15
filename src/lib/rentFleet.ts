@@ -19,10 +19,25 @@ type RentVehicleDto = {
   locationLabel?: unknown;
   pickupLocationLabel?: unknown;
   cityName?: unknown;
+  defaultPickupHandoverLocation?: unknown;
+  defaultReturnHandoverLocation?: unknown;
+  optionDefinitions?: unknown;
 };
 
 function asString(v: unknown): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function handoverId(ref: unknown): string | undefined {
+  if (ref == null || typeof ref !== "object") return undefined;
+  const id = asString((ref as Record<string, unknown>).id).trim();
+  return id || undefined;
+}
+
+function handoverName(ref: unknown): string | undefined {
+  if (ref == null || typeof ref !== "object") return undefined;
+  const n = asString((ref as Record<string, unknown>).name).trim();
+  return n || undefined;
 }
 
 function asNumber(v: unknown, fallback: number): number {
@@ -59,6 +74,32 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
     asString(raw.cityName).trim() ||
     location?.label;
 
+  const defaultPickupHandoverLocationId = handoverId(raw.defaultPickupHandoverLocation);
+  const defaultReturnHandoverLocationId = handoverId(raw.defaultReturnHandoverLocation);
+  const defaultPickupHandoverName = handoverName(raw.defaultPickupHandoverLocation);
+  const defaultReturnHandoverName = handoverName(raw.defaultReturnHandoverLocation);
+
+  const optRaw = raw.optionDefinitions;
+  const rentOptionDefinitions = Array.isArray(optRaw)
+    ? optRaw
+        .map((row) => {
+          if (row == null || typeof row !== "object") return null;
+          const o = row as Record<string, unknown>;
+          const oid = asString(o.id).trim();
+          const title = asString(o.title).trim();
+          if (!oid || !title) return null;
+          const price = typeof o.price === "number" ? o.price : Number(o.price);
+          return {
+            id: oid,
+            title,
+            description: asString(o.description).trim() || undefined,
+            price: Number.isFinite(price) ? price : 0,
+            active: o.active == null ? true : Boolean(o.active),
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    : undefined;
+
   return {
     id,
     brand,
@@ -85,8 +126,13 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
     depositHint: 15000,
     garageLocation:
       "İstanbul, Maslak — Hazırlık noktası A · Filo garajı (demo). Araç bu noktadan veya anlaşmalı ofisten teslim edilir.",
-    pickupLocationId: location?.id,
+    pickupLocationId: defaultPickupHandoverLocationId ?? location?.id,
     pickupLocationLabel: pickupLocationLabel || undefined,
+    defaultPickupHandoverLocationId,
+    defaultReturnHandoverLocationId,
+    defaultPickupHandoverName,
+    defaultReturnHandoverName,
+    rentOptionDefinitions,
   };
 }
 

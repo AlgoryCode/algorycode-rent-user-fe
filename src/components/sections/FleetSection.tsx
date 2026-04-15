@@ -12,18 +12,18 @@ export function FleetSection({ vehicles = [] }: { vehicles?: FleetVehicle[] }) {
   const preview = vehicles.slice(0, previewCount);
 
   return (
-    <section id="filomuz" className="relative mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+    <section id="filomuz" className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
       <Reveal>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Filomuz</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text sm:text-3xl">
-          Ekonomiden SUV&apos;ye <span className="text-accent">geniş seçim</span>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-muted">Öne çıkan filo</p>
+        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-text sm:text-3xl">
+          Seçilmiş araçlar, net günlük fiyat
         </h2>
-        <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-muted sm:text-sm">
-          Filtreleyin, fiyatı görün, detayda müsaitlik takvimini inceleyin. Tüm filo tek listede.
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-text-muted">
+          Listede özet; detayda yalnızca ihtiyaç duyacağınız bilgiler.
         </p>
       </Reveal>
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:gap-6">
+      <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
         {preview.map((car, index) => (
           <Reveal key={car.id} delay={index * 0.06} y={24}>
             <VehicleCard vehicle={car} querySuffix="" />
@@ -32,16 +32,16 @@ export function FleetSection({ vehicles = [] }: { vehicles?: FleetVehicle[] }) {
       </div>
 
       <motion.div
-        className="mt-8 flex justify-center"
+        className="mt-10 flex justify-center"
         initial={{ opacity: 0, y: 8 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
       >
         <Link
           href="/araclar"
-          className="inline-flex items-center rounded-md border border-accent/40 bg-accent/10 px-5 py-2.5 text-[13px] font-semibold text-accent transition-colors hover:bg-accent/15"
+          className="inline-flex min-h-11 items-center rounded-md border border-border-subtle bg-bg-card px-6 text-[13px] font-semibold text-text shadow-sm transition-colors hover:border-navy-hero/25 hover:bg-bg-raised"
         >
-          Tüm araçlar ({vehicles.length})
+          Tümünü gör ({vehicles.length})
         </Link>
       </motion.div>
     </section>

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import Script from "next/script";
+import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600", "700"],
 });
 
@@ -25,14 +26,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" suppressHydrationWarning className={`${dmSans.variable} h-full scroll-smooth antialiased`}>
-      <body className="font-sans min-h-full">
+    <html lang="tr" suppressHydrationWarning className={`${dmSans.variable} h-full min-h-dvh scroll-smooth antialiased`}>
+      <body className="font-sans min-h-dvh">
         <Script id="rent-theme-init" strategy="beforeInteractive">
           {themeInit}
         </Script>
         <ThemeProvider>
-          {children}
-          <Toaster />
+          <LocaleProvider>
+            {children}
+            <Toaster />
+          </LocaleProvider>
         </ThemeProvider>
       </body>
     </html>

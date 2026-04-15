@@ -10,7 +10,7 @@ export function CtaBand() {
     <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">
       <Reveal y={32}>
         <motion.div
-          className="relative overflow-hidden rounded-xl border border-border-subtle bg-bg-card px-6 py-10 text-center sm:px-10 sm:py-12"
+          className="relative overflow-hidden rounded-sm border border-border-subtle bg-bg-card px-6 py-10 text-center shadow-sm sm:px-10 sm:py-12"
           whileHover={{ scale: 1.005 }}
           transition={{ type: "spring", stiffness: 400, damping: 30 }}
         >

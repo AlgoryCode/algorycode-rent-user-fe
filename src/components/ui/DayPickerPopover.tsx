@@ -358,7 +358,7 @@ function DayCell({
         disabled
           ? "cursor-not-allowed text-text-muted/25"
           : selected
-            ? "rounded-xl border border-accent/45 bg-accent font-semibold text-white shadow-md shadow-accent/20 ring-1 ring-accent/30 hover:brightness-105"
+            ? "rounded-xl border border-accent/45 bg-accent font-semibold text-accent-fg shadow-md shadow-accent/20 ring-1 ring-accent/30 hover:brightness-105"
             : `${freeCell} hover:brightness-[1.01] ${isToday ? "ring-1 ring-inset ring-accent/50" : ""}`
       }`}
     >

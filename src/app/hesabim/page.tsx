@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
+import { useTheme } from "@/components/theme/ThemeProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import {
   activateTwoFactor,
@@ -21,15 +22,45 @@ import { clearClientAuthSession, getStoredAuthUser, readUserIdFromJwt, setStored
 import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/rentApi";
 import { compareIso } from "@/lib/calendarGrid";
 import { formatTrDate } from "@/lib/dates";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/Icons";
+
+type AccountTab = "profil" | "guvenlik" | "bildirim" | "tercihler" | "rezervasyonlar";
+
+function isAccountTab(value: string | null): value is AccountTab {
+  return (
+    value === "profil" ||
+    value === "guvenlik" ||
+    value === "bildirim" ||
+    value === "tercihler" ||
+    value === "rezervasyonlar"
+  );
+}
+
+/** `section` öncelikli; eski `tab` bağlantıları için geriye dönük. */
+function parseAccountSection(sp: URLSearchParams): AccountTab | null {
+  const fromSection = sp.get("section");
+  if (isAccountTab(fromSection)) return fromSection;
+  const fromTab = sp.get("tab");
+  if (isAccountTab(fromTab)) return fromTab;
+  return null;
+}
+
+const ACCOUNT_NAV: readonly { id: AccountTab; title: string; description: string }[] = [
+  { id: "profil", title: "Profil", description: "Kişisel bilgiler ve iletişim" },
+  { id: "guvenlik", title: "Güvenlik", description: "Şifre ve iki aşamalı doğrulama" },
+  { id: "bildirim", title: "Bildirimler", description: "E-posta ve bildirim tercihleri" },
+  { id: "tercihler", title: "Tercihler", description: "Görünüm ve site deneyimi" },
+  { id: "rezervasyonlar", title: "Rezervasyonlarım", description: "Geçmiş kiralamalar ve talepler" },
+];
 
 function HesabimPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"profil" | "guvenlik" | "bildirim" | "rezervasyonlar">("profil");
   const [reservationTab, setReservationTab] = useState<"gecmis" | "talepler">("gecmis");
   const [reservationsLoading, setReservationsLoading] = useState(false);
   const [reservationsError, setReservationsError] = useState<string | null>(null);
@@ -62,6 +93,27 @@ function HesabimPageContent() {
   const [auth, setAuth] = useState<{ accessToken: string; userId: number } | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
 
+  const activeSection = useMemo(() => parseAccountSection(searchParams), [searchParams]);
+  const isListView = activeSection === null;
+
+  const openSection = useCallback(
+    (id: AccountTab) => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("tab");
+      next.set("section", id);
+      router.replace(`/hesabim?${next.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  const closeToList = useCallback(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("section");
+    next.delete("tab");
+    const q = next.toString();
+    router.replace(q ? `/hesabim?${q}` : "/hesabim", { scroll: false });
+  }, [router, searchParams]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -88,13 +140,6 @@ function HesabimPageContent() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab === "profil" || tab === "guvenlik" || tab === "bildirim" || tab === "rezervasyonlar") {
-      setActiveTab(tab);
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (searchParams.get("yetkisiz") !== "1") return;
@@ -140,7 +185,7 @@ function HesabimPageContent() {
 
   useEffect(() => {
     const loadReservations = async () => {
-      if (!auth || !profile || activeTab !== "rezervasyonlar") return;
+      if (!auth || !profile || activeSection !== "rezervasyonlar") return;
       setReservationsLoading(true);
       setReservationsError(null);
       try {
@@ -175,7 +220,7 @@ function HesabimPageContent() {
       }
     };
     void loadReservations();
-  }, [activeTab, auth, profile]);
+  }, [activeSection, auth, profile]);
 
   if (!sessionChecked) {
     return (
@@ -194,7 +239,7 @@ function HesabimPageContent() {
         <main className="mx-auto max-w-xl px-4 pb-20 pt-28 text-center sm:px-6">
           <h1 className="text-2xl font-semibold text-text">Hesabım</h1>
           <p className="mt-3 text-sm text-text-muted">Bu alanı görmek için giriş yapmalısın.</p>
-          <Link href="/giris-yap?next=/hesabim" className="mt-6 inline-flex rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white">
+          <Link href="/giris-yap?next=/hesabim" className="mt-6 inline-flex rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg">
             Giriş Yap
           </Link>
         </main>
@@ -305,13 +350,27 @@ function HesabimPageContent() {
   const filteredRentals = filterReservationRows(rentalRows, reservationQuery, reservationFrom, reservationTo);
   const filteredRequests = filterReservationRows(requestRows, reservationQuery, reservationFrom, reservationTo);
 
+  const sectionMeta = activeSection ? (ACCOUNT_NAV.find((x) => x.id === activeSection) ?? null) : null;
+
   return (
     <SiteLayout>
-      <main className="mx-auto w-full max-w-3xl px-4 pb-20 pt-28 sm:px-6">
+      <main className="mx-auto w-full max-w-2xl px-4 pb-24 pt-28 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-text">Hesabım</h1>
-            <p className="mt-2 text-sm text-text-muted">Profil, şifre ve güvenlik ayarları.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Hesabım</h1>
+            <p className="mt-2 text-sm text-text-muted">
+              {isListView ? (
+                "Hesap ayarlarını buradan yönet."
+              ) : (
+                <>
+                  <span className="text-text-muted">Ayarlar</span>
+                  <span className="mx-2 text-border-subtle" aria-hidden>
+                    /
+                  </span>
+                  <span className="font-medium text-text">{sectionMeta?.title ?? "Detay"}</span>
+                </>
+              )}
+            </p>
           </div>
           <button
             type="button"
@@ -321,7 +380,7 @@ function HesabimPageContent() {
                 router.push("/");
               })();
             }}
-            className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-text"
+            className="rounded-lg border border-border-subtle/90 bg-transparent px-4 py-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/70 dark:hover:bg-white/[0.05]"
           >
             Çıkış yap
           </button>
@@ -331,18 +390,47 @@ function HesabimPageContent() {
         {error && <p className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>}
 
         {!loading && profile && (
-          <div className="mt-6 space-y-5">
-            <div className="inline-flex rounded-xl border border-border-subtle bg-bg-card/50 p-1">
-              <TabButton active={activeTab === "profil"} onClick={() => setActiveTab("profil")}>Profil</TabButton>
-              <TabButton active={activeTab === "guvenlik"} onClick={() => setActiveTab("guvenlik")}>Güvenlik</TabButton>
-              <TabButton active={activeTab === "bildirim"} onClick={() => setActiveTab("bildirim")}>Bildirim</TabButton>
-              <TabButton active={activeTab === "rezervasyonlar"} onClick={() => setActiveTab("rezervasyonlar")}>Rezervasyonlarım</TabButton>
-            </div>
-
-            {activeTab === "profil" && (
-              <section className="rounded-xl border border-border-subtle bg-bg-card/60 p-4">
-                <h2 className="text-base font-semibold text-text">Profil</h2>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="relative mt-10 min-h-0 overflow-hidden">
+            {isListView ? (
+              <div role="navigation" aria-label="Ayarlar listesi" className="mx-auto max-w-lg">
+                  <ul className="divide-y divide-border-subtle/60 overflow-hidden rounded-2xl border border-black/[0.06] bg-bg-card/60 shadow-sm dark:border-white/[0.08]">
+                    {ACCOUNT_NAV.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => openSection(item.id)}
+                          className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors duration-200 hover:bg-black/[0.06] sm:px-5 dark:hover:bg-white/[0.08]"
+                        >
+                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="text-[15px] font-medium tracking-tight text-text">{item.title}</span>
+                            <span className="text-xs leading-snug text-text-muted">{item.description}</span>
+                          </span>
+                          <ChevronRightIcon className="size-[18px] shrink-0 text-text-muted/70" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+              </div>
+            ) : (
+              <div className="w-full">
+                  <button
+                    type="button"
+                    onClick={closeToList}
+                    className="mb-6 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-text-muted transition-colors duration-200 hover:bg-bg-raised/70 dark:hover:bg-white/[0.06]"
+                  >
+                    <ChevronLeftIcon className="size-[18px] shrink-0" />
+                    Ayarlara dön
+                  </button>
+                  {sectionMeta && (
+                    <header className="mb-8 border-b border-border-subtle/70 pb-6">
+                      <h2 className="sr-only">{sectionMeta.title}</h2>
+                      <p className="text-sm leading-relaxed text-text-muted">{sectionMeta.description}</p>
+                    </header>
+                  )}
+                  <div className="space-y-6">
+            {activeSection === "profil" && (
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-text-muted">Ad
                     <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                   </label>
@@ -356,40 +444,87 @@ function HesabimPageContent() {
                     <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
                   </label>
                 </div>
-                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
                   {saving ? "Kaydediliyor..." : "Profili Kaydet"}
                 </button>
               </section>
             )}
 
-            {activeTab === "bildirim" && (
-              <section className="rounded-xl border border-border-subtle bg-bg-card/60 p-4">
-                <h2 className="text-base font-semibold text-text">Bildirim tercihleri</h2>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {activeSection === "tercihler" && (
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <div>
+                  <p className="text-sm font-medium text-text">Görünüm</p>
+                  <p className="mt-0.5 text-xs text-text-muted">Arayüzü gece veya gündüz modunda kullanın.</p>
+                  <div className="mt-3 inline-flex rounded-lg border border-border-subtle bg-bg-raised/30 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setTheme("light")}
+                      className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
+                        theme === "light" ? "bg-accent text-accent-fg" : "text-text-muted hover:bg-bg-raised/80"
+                      }`}
+                    >
+                      Gündüz
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("dark")}
+                      className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
+                        theme === "dark" ? "bg-accent text-accent-fg" : "text-text-muted hover:bg-bg-raised/80"
+                      }`}
+                    >
+                      Gece
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeSection === "bildirim" && (
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <div className="grid gap-2 sm:grid-cols-2">
                   <ToggleItem label="Önemli e-postalar" checked={notifyEmailImportant} onChange={setNotifyEmailImportant} />
                   <ToggleItem label="Tarama alarmları" checked={notifyScanAlerts} onChange={setNotifyScanAlerts} />
                   <ToggleItem label="Haftalık rapor" checked={notifyWeeklyReport} onChange={setNotifyWeeklyReport} />
                   <ToggleItem label="Pazarlama e-postaları" checked={notifyMarketingEmails} onChange={setNotifyMarketingEmails} />
                   <ToggleItem label="Tarayıcı push" checked={notifyPushBrowser} onChange={setNotifyPushBrowser} />
                 </div>
-                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
                   {saving ? "Kaydediliyor..." : "Tercihleri Kaydet"}
                 </button>
               </section>
             )}
 
-            {activeTab === "rezervasyonlar" && (
-              <section className="rounded-xl border border-border-subtle bg-bg-card/60 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-text">Rezervasyonlarım</h2>
-                  <Link href="/araclar" className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white">
+            {activeSection === "rezervasyonlar" && (
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Link href="/araclar" className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-fg">
                     Yeni rezervasyon oluştur
                   </Link>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <TabButton active={reservationTab === "gecmis"} onClick={() => setReservationTab("gecmis")}>Geçmiş rezervasyonlar</TabButton>
-                  <TabButton active={reservationTab === "talepler"} onClick={() => setReservationTab("talepler")}>Rezervasyon talepleri</TabButton>
+                <div className="mt-4 grid w-full max-w-xl grid-cols-2 gap-1 rounded-xl border border-border-subtle/70 bg-bg-raised/25 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setReservationTab("gecmis")}
+                    className={`rounded-lg px-2 py-2.5 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 sm:px-3 sm:text-xs ${
+                      reservationTab === "gecmis"
+                        ? "bg-bg-card text-text shadow-sm ring-1 ring-border-subtle/60"
+                        : "text-text-muted hover:bg-bg-card/60"
+                    }`}
+                  >
+                    Geçmiş rezervasyonlar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReservationTab("talepler")}
+                    className={`rounded-lg px-2 py-2.5 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 sm:px-3 sm:text-xs ${
+                      reservationTab === "talepler"
+                        ? "bg-bg-card text-text shadow-sm ring-1 ring-border-subtle/60"
+                        : "text-text-muted hover:bg-bg-card/60"
+                    }`}
+                  >
+                    Rezervasyon talepleri
+                  </button>
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -444,7 +579,7 @@ function HesabimPageContent() {
                             <p className="text-xs text-text-muted mb-3">
                               Hayalinizdeki aracı keşfedin ve unutulmaz bir yolculuğa adım atın!
                             </p>
-                            <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent/90">
+                            <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-fg hover:bg-accent/90">
                               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                               </svg>
@@ -463,9 +598,9 @@ function HesabimPageContent() {
               </section>
             )}
 
-            {activeTab === "guvenlik" && (
-              <>
-                <section className="rounded-xl border border-border-subtle bg-bg-card/60 p-4">
+            {activeSection === "guvenlik" && (
+              <div className="space-y-6">
+                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                   <h2 className="text-base font-semibold text-text">Şifre değiştir</h2>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <label className="text-xs text-text-muted">Mevcut şifre
@@ -478,17 +613,17 @@ function HesabimPageContent() {
                       <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={newPasswordRepeat} onChange={(e) => setNewPasswordRepeat(e.target.value)} />
                     </label>
                   </div>
-                  <button type="button" onClick={() => void onChangePassword()} disabled={changingPw || !currentPassword || !newPassword || !newPasswordRepeat} className="mt-4 rounded-lg border border-border-subtle px-4 py-2.5 text-sm font-semibold text-text disabled:opacity-60">
+                  <button type="button" onClick={() => void onChangePassword()} disabled={changingPw || !currentPassword || !newPassword || !newPasswordRepeat} className="mt-4 rounded-lg border border-border-subtle bg-transparent px-4 py-2.5 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/75 disabled:pointer-events-none disabled:opacity-60">
                     {changingPw ? "Güncelleniyor..." : "Şifreyi Güncelle"}
                   </button>
                 </section>
 
-                <section className="rounded-xl border border-border-subtle bg-bg-card/60 p-4">
+                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                   <h2 className="text-base font-semibold text-text">2FA (Authenticator)</h2>
                   <p className="mt-1 text-xs text-text-muted">Durum: {profile.twoFactorEnabled ? "Aktif" : "Pasif"}</p>
 
                   {!profile.twoFactorEnabled && (
-                    <button type="button" onClick={() => void onSetup2fa()} disabled={twoFaBusy} className="mt-3 rounded-lg border border-border-subtle px-4 py-2.5 text-sm font-semibold text-text disabled:opacity-60">
+                    <button type="button" onClick={() => void onSetup2fa()} disabled={twoFaBusy} className="mt-3 rounded-lg border border-border-subtle bg-transparent px-4 py-2.5 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/75 disabled:pointer-events-none disabled:opacity-60">
                       {twoFaBusy ? "Hazırlanıyor..." : "2FA Kurulumu Başlat"}
                     </button>
                   )}
@@ -523,17 +658,20 @@ function HesabimPageContent() {
                       <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" />
                     </label>
                     {!profile.twoFactorEnabled ? (
-                      <button type="button" onClick={() => void onActivate2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                      <button type="button" onClick={() => void onActivate2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
                         2FA Aktifleştir
                       </button>
                     ) : (
-                      <button type="button" onClick={() => void onDisable2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg border border-border-subtle px-4 py-2.5 text-sm font-semibold text-text disabled:opacity-60">
+                      <button type="button" onClick={() => void onDisable2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg border border-border-subtle bg-transparent px-4 py-2.5 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/75 disabled:pointer-events-none disabled:opacity-60">
                         2FA Kapat
                       </button>
                     )}
                   </div>
                 </section>
-              </>
+              </div>
+            )}
+                  </div>
+              </div>
             )}
           </div>
         )}
@@ -686,26 +824,6 @@ function filterReservationRows(rows: ReservationRow[], q: string, from: string, 
     const hay = `${r.vehicleBrand} ${r.vehicleName} ${r.plate || ""} ${r.referenceNo || ""}`.toLowerCase();
     return hay.includes(query);
   });
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${active ? "bg-accent text-white" : "text-text-muted hover:text-text"}`}
-    >
-      {children}
-    </button>
-  );
 }
 
 function ToggleItem({

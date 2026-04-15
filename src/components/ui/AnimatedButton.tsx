@@ -9,18 +9,18 @@ const MotionLink = motion(Link);
 type Variant = "primary" | "ghost" | "outline";
 
 const base =
-  "relative inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-[13px] font-semibold transition-[box-shadow,background-color,border-color,color] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "relative inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-[13px] font-semibold transition-[box-shadow,background-color,border-color,color,transform] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-white shadow-sm hover:brightness-105 hover:shadow-md active:brightness-95",
+    "bg-accent text-accent-fg shadow-sm hover:brightness-110 hover:shadow-md active:brightness-95",
   ghost:
-    "border border-border-subtle bg-bg-raised/60 text-text hover:bg-bg-card hover:border-border-subtle",
+    "border border-border-subtle/80 bg-transparent text-text transition-colors duration-200 hover:bg-bg-raised/80 dark:hover:bg-white/[0.06]",
   outline:
-    "border border-accent/50 text-accent hover:bg-accent/10 hover:border-accent",
+    "border border-accent/50 text-accent transition-colors duration-200 hover:bg-accent/10",
 };
 
-const motionProps = {
+const motionPrimary = {
   whileHover: { scale: 1.01 },
   whileTap: { scale: 0.99 },
   transition: { type: "spring" as const, stiffness: 500, damping: 28 },
@@ -43,6 +43,7 @@ export function AnimatedButton({
   disabled?: boolean;
 } & Omit<React.ComponentProps<typeof motion.button>, "children" | "disabled">) {
   const cls = `${base} ${variants[variant]} ${className}`;
+  const motionProps = variant === "primary" ? motionPrimary : {};
 
   if (href) {
     return (

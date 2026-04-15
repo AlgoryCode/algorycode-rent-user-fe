@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "local_prod": "NEXT_PUBLIC_LOCAL_PROD=true next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

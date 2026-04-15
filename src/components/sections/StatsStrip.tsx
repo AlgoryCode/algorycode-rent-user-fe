@@ -35,9 +35,9 @@ const stats = [
 
 export function StatsStrip() {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+    <section className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
       <Reveal>
-        <div className="grid gap-4 rounded-xl border border-border-subtle bg-bg-card/60 px-5 py-8 sm:grid-cols-3 sm:gap-6 sm:px-8">
+        <div className="grid gap-6 rounded-2xl border border-border-subtle/80 bg-bg-card px-6 py-10 shadow-[0_16px_48px_-36px_rgba(11,30,59,0.2)] sm:grid-cols-3 sm:gap-8 sm:px-10">
           {stats.map((s, i) => (
             <motion.div
               key={s.label}

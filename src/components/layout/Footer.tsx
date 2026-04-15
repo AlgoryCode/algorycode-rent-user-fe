@@ -2,11 +2,15 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/LocaleProvider";
 import { SITE_SUPPORT_PHONE_DISPLAY } from "@/lib/siteContact";
 
 export function Footer() {
+  const { t } = useI18n();
+  const year = new Date().getFullYear();
+
   return (
-    <footer id="iletisim" className="mt-16 border-t border-border-subtle bg-bg-raised/70">
+    <footer id="iletisim" className="mt-16 shrink-0 border-t border-border-subtle bg-bg-raised shadow-[inset_0_1px_0_rgba(201,169,98,0.08)] dark:shadow-[inset_0_1px_0_rgba(201,169,98,0.12)]">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <motion.div
@@ -18,9 +22,7 @@ export function Footer() {
             <p className="text-base font-semibold text-text">
               <span className="text-accent">Algorycode</span> Rent
             </p>
-            <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-text-muted">
-              Şeffaf fiyat, net koşullar ve hızlı rezervasyon ile araç kiralama.
-            </p>
+            <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-text-muted">{t("footer.tagline")}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -28,12 +30,18 @@ export function Footer() {
             viewport={{ once: true }}
             transition={{ duration: 0.35, delay: 0.04 }}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Keşfet</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.explore")}</p>
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
-              {["Filomuz", "Kurumsal", "Blog"].map((t) => (
-                <li key={t}>
-                  <Link href="#" className="hover:text-text">
-                    {t}
+              {(
+                [
+                  ["#", "footer.linkFleet"],
+                  ["#", "footer.linkCorporate"],
+                  ["#", "footer.linkBlog"],
+                ] as const
+              ).map(([href, key]) => (
+                <li key={key}>
+                  <Link href={href} className="hover:text-text">
+                    {t(key)}
                   </Link>
                 </li>
               ))}
@@ -45,12 +53,18 @@ export function Footer() {
             viewport={{ once: true }}
             transition={{ duration: 0.35, delay: 0.08 }}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Destek</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.support")}</p>
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
-              {["SSS", "Hasar & sigorta", "İade koşulları"].map((t) => (
-                <li key={t}>
-                  <Link href="#" className="hover:text-text">
-                    {t}
+              {(
+                [
+                  ["#", "footer.linkFaq"],
+                  ["#", "footer.linkDamage"],
+                  ["#", "footer.linkReturns"],
+                ] as const
+              ).map(([href, key]) => (
+                <li key={key}>
+                  <Link href={href} className="hover:text-text">
+                    {t(key)}
                   </Link>
                 </li>
               ))}
@@ -62,7 +76,7 @@ export function Footer() {
             viewport={{ once: true }}
             transition={{ duration: 0.35, delay: 0.12 }}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">İletişim</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.contact")}</p>
             <p className="mt-3 text-[13px] text-text-muted">
               concierge@algorycode.rent
               <br />
@@ -71,7 +85,7 @@ export function Footer() {
           </motion.div>
         </div>
         <p className="mt-8 border-t border-border-subtle pt-6 text-center text-[11px] text-text-muted">
-          © {new Date().getFullYear()} Algorycode Rent. Tüm hakları saklıdır.
+          {t("footer.rights", { year })}
         </p>
       </div>
     </footer>

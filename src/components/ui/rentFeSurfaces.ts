@@ -3,8 +3,9 @@
  */
 
 /** Body’ye portal edilen açılır paneller (ör. tarih popover). Yumuşak cam, difüz gölge, ince ışık çizgisi. */
+/** `relative` kullanma: açılır panellerde `absolute`/`fixed` ile çakışıp akışta kalmasına yol açabilir. */
 export const rentFloatingDropdownPanelClass = [
-  "relative isolate overflow-hidden rounded-3xl",
+  "isolate overflow-hidden rounded-3xl",
   "border border-border-subtle/40",
   "bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.01))] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]",
   "bg-bg-card/[0.85] dark:bg-bg-card/[0.68]",

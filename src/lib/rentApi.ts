@@ -31,13 +31,30 @@ export type RentPanelUserDto = Record<string, unknown>;
 export type RentCustomerRecordStateDto = Record<string, unknown>;
 export type RentCustomerRecordDeletionDto = Record<string, unknown>;
 export type RentRentalRequestDto = Record<string, unknown>;
+export type RentHandoverLocationDto = Record<string, unknown>;
+
+/** Kiralama / talep ek satırları (rent-service ile uyumlu). */
+export type RentalOptionPayload = {
+  /** Doluysa başlık/fiyat sunucuda araç tanımından alınır. */
+  vehicleOptionDefinitionId?: string;
+  title?: string;
+  description?: string | null;
+  price?: number;
+  icon?: string | null;
+};
 
 export type CreateRentalRequestFormPayload = {
   vehicleId?: string;
   startDate: string;
   endDate: string;
+  /** rent-service `handover_locations` (kind PICKUP); opsiyonel. */
+  pickupHandoverLocationId?: string;
+  /** rent-service `handover_locations` (kind RETURN); opsiyonel. */
+  returnHandoverLocationId?: string;
   outsideCountryTravel: boolean;
   note?: string;
+  /** Boş veya gönderilmez: seçenek yok. */
+  options?: RentalOptionPayload[];
   customer: {
     fullName: string;
     phone: string;
@@ -58,6 +75,11 @@ export type CreateRentalRequestFormPayload = {
     driverLicenseImageDataUrl: string;
   }[];
 };
+
+export async function fetchHandoverLocationsFromRentApi(kind?: "PICKUP" | "RETURN") {
+  const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  return apiRequest<RentHandoverLocationDto[]>(`/handover-locations${q}`, "GET");
+}
 
 export async function fetchVehiclesFromRentApi() {
   return apiRequest<RentVehicleDto[]>("/vehicles", "GET");

@@ -7,7 +7,7 @@ export function PageShell({ children }: { children: ReactNode }) {
   const reduce = useReducedMotion();
 
   if (reduce) {
-    return <>{children}</>;
+    return <div className="flex min-h-dvh flex-col">{children}</div>;
   }
 
   return (
@@ -15,6 +15,7 @@ export function PageShell({ children }: { children: ReactNode }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] as const }}
+      className="flex min-h-dvh flex-col"
     >
       {children}
     </motion.div>

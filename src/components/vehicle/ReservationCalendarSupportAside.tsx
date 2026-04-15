@@ -23,7 +23,7 @@ export function ReservationCalendarSupportAside({ className = "" }: { className?
             href={SITE_SUPPORT_WHATSAPP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-raised/40 px-3 py-2.5 text-sm font-medium text-text transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/5"
+            className="flex items-center gap-3 rounded-sm border border-border-subtle bg-bg-raised/40 px-3 py-2.5 text-sm font-medium text-text transition-colors hover:border-accent/40 hover:bg-accent/5"
           >
             <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#25D366]/15 text-[#25D366]">
               <WhatsAppBrandIcon className="size-6" />

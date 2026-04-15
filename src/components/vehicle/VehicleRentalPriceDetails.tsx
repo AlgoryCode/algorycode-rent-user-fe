@@ -1,20 +1,33 @@
-import { formatTryDecimal } from "@/data/fleet";
+"use client";
+
+import { useI18n } from "@/components/i18n/LocaleProvider";
 
 type Props = {
   pricePerDay: number;
   /** Geçerli aralık yoksa null — takvim seçimine göre güncellenir */
   nights: number | null;
   className?: string;
+  /** `plain`: üst kart içinde gömülü, çerçevesiz */
+  variant?: "card" | "plain";
 };
 
-export function VehicleRentalPriceDetails({ pricePerDay, nights, className = "" }: Props) {
+export function VehicleRentalPriceDetails({
+  pricePerDay,
+  nights,
+  className = "",
+  variant = "card",
+}: Props) {
+  const { formatPriceDecimal } = useI18n();
   const hasTotal = nights != null && nights > 0;
   const total = hasTotal ? pricePerDay * nights : null;
 
+  const shell =
+    variant === "plain"
+      ? "border-0 bg-transparent p-0 shadow-none"
+      : "border-2 border-border-subtle bg-bg-deep/30 p-4 shadow-inner sm:p-5 dark:bg-black/20";
+
   return (
-    <div
-      className={`rounded-2xl border border-border-subtle/80 bg-bg-card/55 p-4 shadow-sm backdrop-blur-sm sm:p-5 ${className}`}
-    >
+    <div className={`${shell} ${className}`}>
       <h3 className="font-display text-base font-semibold tracking-tight text-text sm:text-lg">
         Fiyat Ayrıntıları
       </h3>
@@ -29,18 +42,18 @@ export function VehicleRentalPriceDetails({ pricePerDay, nights, className = "" 
         <div className="flex items-baseline justify-between gap-3 text-sm">
           <span className="text-text-muted">Kiralama hizmeti</span>
           <span className="shrink-0 text-right font-semibold tabular-nums text-text">
-            {hasTotal && total != null ? formatTryDecimal(total) : "—"}
+            {hasTotal && total != null ? formatPriceDecimal(total) : "—"}
           </span>
         </div>
         <div className="flex items-baseline justify-between gap-3 text-sm">
           <span className="font-medium text-text">Toplam Fiyat</span>
           <span className="shrink-0 text-right font-semibold tabular-nums text-text">
-            {hasTotal && total != null ? formatTryDecimal(total) : "—"}
+            {hasTotal && total != null ? formatPriceDecimal(total) : "—"}
           </span>
         </div>
         {hasTotal && nights != null && total != null && (
           <p className="text-[12px] tabular-nums text-text-muted">
-            {formatTryDecimal(pricePerDay)} x {nights} Gün
+            {formatPriceDecimal(pricePerDay)} x {nights} Gün
           </p>
         )}
       </div>

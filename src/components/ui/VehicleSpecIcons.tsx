@@ -81,3 +81,107 @@ export function LuggageIcon({ className = "" }: { className?: string }) {
     </svg>
   );
 }
+
+export function CalendarModelYearIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 6V4m8 2V4M5 10h14M5 8a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V8z"
+      />
+    </svg>
+  );
+}
+
+export function MapPinGarageIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21s7-4.35 7-11a7 7 0 10-14 0c0 6.65 7 11 7 11z"
+      />
+      <circle cx="12" cy="10" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+export function FuelPumpIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 21V8a2 2 0 00-2-2H8v15M14 8h2a2 2 0 012 2v4.5a1.5 1.5 0 003 0V12M6 21h8M6 17h4"
+      />
+    </svg>
+  );
+}
+
+export function ZapFuelElectricIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+    </svg>
+  );
+}
+
+export function GaugePowerIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M5 15a7 7 0 0114 0"
+      />
+      <path stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" d="M12 15V9l3 2" />
+      <circle cx="12" cy="15" r="1.35" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function LeafCo2Icon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.65"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11 20A7 7 0 0118 6c0 4-3 7-7 7-1 0-3-1-3-1s-1 2 1 4 2 4 2 4zM7 20c0-2 1-4 2-5"
+      />
+    </svg>
+  );
+}
+
+export function CheckCircleSoftIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.65" />
+      <path
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 12l2.5 2.5L16 9"
+      />
+    </svg>
+  );
+}
+
+export function XCircleSoftIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.65" />
+      <path stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" d="M9 9l6 6M15 9l-6 6" />
+    </svg>
+  );
+}

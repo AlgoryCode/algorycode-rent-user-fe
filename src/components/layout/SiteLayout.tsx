@@ -8,9 +8,9 @@ import type { ReactNode } from "react";
 export function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <PageShell>
-      <div className="theme-canvas noise text-text flex min-h-full flex-col">
+      <div className="theme-canvas text-text flex min-h-0 flex-1 flex-col">
         <Header />
-        <div className="flex flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         <Footer />
       </div>
     </PageShell>

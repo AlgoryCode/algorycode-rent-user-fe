@@ -59,6 +59,8 @@ export type RentalAvailabilityCalendarPanelProps = {
    * Verilirse bunun yerine çağrılır (örn. araç detayında `alis` / `teslim` sorgu parametrelerini silmek).
    */
   onInlineReset?: () => void;
+  /** Dış çerçeve yok; üst bileşen tek kutu içinde birleşik kenar için (ör. rezervasyon modalı). */
+  unframed?: boolean;
 };
 
 export function RentalAvailabilityCalendarPanel({
@@ -77,6 +79,7 @@ export function RentalAvailabilityCalendarPanel({
   embedded = false,
   embeddedWide = false,
   onInlineReset,
+  unframed = false,
 }: RentalAvailabilityCalendarPanelProps) {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
@@ -244,23 +247,27 @@ export function RentalAvailabilityCalendarPanel({
   const tight = embedded && !wideEmbedded;
 
   const rootLayoutClass = wideEmbedded
-    ? "min-w-0 w-full max-w-full"
+    ? "min-w-0 w-full"
     : tight
       ? "lg:max-w-[18rem] lg:rounded-xl lg:shadow-sm"
       : "lg:max-w-sm";
 
+  const outerFrame = unframed
+    ? "rounded-none border-0 shadow-none ring-0"
+    : "rounded-2xl border border-border-subtle/80";
+
   return (
     <div
-      className={`relative box-border flex min-w-0 w-full max-w-full flex-col overflow-x-clip rounded-2xl border border-border-subtle/80 bg-transparent ${rootLayoutClass} ${className}`}
+      className={`relative box-border flex min-w-0 w-full max-w-full flex-col overflow-x-clip bg-transparent ${outerFrame} ${rootLayoutClass} ${className}`}
     >
       <div
-        className={`relative border-b border-border-subtle/80 bg-transparent px-4 py-3 sm:px-5 sm:py-4 ${tight ? "lg:px-2 lg:py-2" : "lg:px-3.5 lg:py-2.5"}`}
+        className={`relative border-b border-border-subtle/80 bg-transparent px-3 py-2.5 sm:px-4 sm:py-3 ${tight ? "lg:px-2 lg:py-1.5" : "lg:px-3 lg:py-2"}`}
       >
         <div className="flex items-start justify-between gap-2">
           {showPanelTitle !== false && (
             <h2
               id={headingId}
-              className={`font-display text-lg text-text sm:text-xl ${tight ? "lg:text-sm" : "lg:text-base"}`}
+              className={`font-display text-base font-semibold text-text sm:text-lg ${tight ? "lg:text-sm" : "lg:text-[15px]"}`}
             >
               {headTitle}
             </h2>
@@ -268,7 +275,7 @@ export function RentalAvailabilityCalendarPanel({
           <button
             type="button"
             onClick={clearSelection}
-            className="rounded-md border border-border-subtle bg-bg-card/40 px-2.5 py-1 text-[11px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
+            className="rounded-md border border-border-subtle bg-bg-card/40 px-2 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
           >
             Sıfırla
           </button>
@@ -286,28 +293,22 @@ export function RentalAvailabilityCalendarPanel({
       </div>
 
       <div
-        className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 border-b border-border-subtle/80 bg-transparent px-3 py-2 text-[10px] text-text-muted sm:text-[11px] lg:text-[10px] ${tight ? "lg:gap-x-2 lg:gap-y-0.5 lg:px-2 lg:py-1" : "lg:gap-x-3 lg:gap-y-1 lg:px-2.5 lg:py-1.5"}`}
+        className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-border-subtle/80 bg-transparent px-2 py-1.5 text-[10px] text-text-muted sm:text-[11px] ${tight ? "lg:gap-x-3 lg:px-1.5 lg:py-1" : "lg:px-2 lg:py-1.5"}`}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm border border-border-subtle bg-transparent" />
+          <span className="size-2 rounded-sm border border-border-subtle bg-transparent" />
           Müsait
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="cal-legend-blocked-swatch size-2.5 shrink-0" aria-hidden />
+          <span className="cal-legend-blocked-swatch size-2 shrink-0" aria-hidden />
           Dolu
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-accent ring-1 ring-accent/45" />
-          Seçim
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-orange-500/90" />
-          Bugün
         </span>
       </div>
 
-      <div className={`min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 ${tight ? "lg:px-1.5 lg:py-1.5" : "lg:px-2.5 lg:py-2"}`}>
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-border-subtle/70 bg-transparent px-1 py-1 lg:mb-2 lg:rounded-lg">
+      <div className={`min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3 ${tight ? "lg:px-1 lg:py-1" : "lg:px-2 lg:py-1.5"}`}>
+        <div
+          className={`mb-2 flex items-center justify-between px-0.5 py-0.5 lg:mb-1.5 ${unframed ? "rounded-none border-0 bg-bg-raised/40 dark:bg-bg-deep/50" : "rounded-lg border border-border-subtle/70 bg-transparent"}`}
+        >
           <button
             type="button"
             disabled={!canGoPrevCalendar(year, month, minD)}
@@ -317,7 +318,7 @@ export function RentalAvailabilityCalendarPanel({
                 setYear((y) => y - 1);
               } else setMonth((m) => m - 1);
             }}
-            className={`flex size-9 items-center justify-center rounded-lg border border-transparent text-lg text-text transition-colors duration-150 hover:border-border-subtle hover:bg-bg-card active:bg-bg-raised disabled:pointer-events-none disabled:opacity-25 ${tight ? "lg:size-7 lg:text-sm" : "lg:size-8 lg:text-base"}`}
+            className={`flex size-8 items-center justify-center rounded-md border border-transparent text-base text-text transition-colors duration-150 hover:border-border-subtle hover:bg-bg-card active:bg-bg-raised disabled:pointer-events-none disabled:opacity-25 ${tight ? "lg:size-6 lg:text-sm" : "lg:size-7"}`}
           >
             ‹
           </button>
@@ -328,7 +329,7 @@ export function RentalAvailabilityCalendarPanel({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={fadeQuick}
-              className={`min-w-0 flex-1 truncate text-center text-sm font-semibold capitalize text-text ${tight ? "lg:text-[11px]" : "lg:text-xs"}`}
+              className={`min-w-0 flex-1 truncate text-center text-xs font-semibold capitalize text-text ${tight ? "lg:text-[10px]" : "lg:text-[11px]"}`}
             >
               {monthTitle}
             </motion.span>
@@ -342,7 +343,7 @@ export function RentalAvailabilityCalendarPanel({
                 setYear((y) => y + 1);
               } else setMonth((m) => m + 1);
             }}
-            className={`flex size-9 items-center justify-center rounded-lg border border-transparent text-lg text-text transition-colors duration-150 hover:border-border-subtle hover:bg-bg-card active:bg-bg-raised disabled:pointer-events-none disabled:opacity-25 ${tight ? "lg:size-7 lg:text-sm" : "lg:size-8 lg:text-base"}`}
+            className={`flex size-8 items-center justify-center rounded-md border border-transparent text-base text-text transition-colors duration-150 hover:border-border-subtle hover:bg-bg-card active:bg-bg-raised disabled:pointer-events-none disabled:opacity-25 ${tight ? "lg:size-6 lg:text-sm" : "lg:size-7"}`}
           >
             ›
           </button>
@@ -357,18 +358,18 @@ export function RentalAvailabilityCalendarPanel({
             transition={fadeMonth}
           >
             <div
-              className={`grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium uppercase tracking-wide text-text-muted/90 ${tight ? "lg:text-[8px]" : "lg:text-[9px]"}`}
+              className={`grid grid-cols-7 gap-0 text-center text-[9px] font-medium uppercase tracking-wide text-text-muted/90 ${tight ? "lg:text-[7px]" : "lg:text-[8px]"}`}
             >
               {WEEKDAYS_TR.map((w) => (
-                <div key={w} className={`py-1.5 ${tight ? "lg:py-0.5" : "lg:py-1"}`}>
+                <div key={w} className={`py-1 ${tight ? "lg:py-0.5" : "lg:py-0.5"}`}>
                   {w}
                 </div>
               ))}
             </div>
-            <div className={`mt-1 grid grid-cols-7 gap-1 sm:gap-1.5 lg:mt-0.5 ${tight ? "lg:gap-px" : "lg:gap-0.5"}`}>
+            <div className="mt-0.5 grid max-w-full grid-cols-7 gap-0 divide-x divide-y divide-border-subtle/55 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-raised/15 dark:bg-bg-deep/25">
               {cells.map((cell, i) =>
                 cell == null ? (
-                  <div key={`e-${i}`} className="aspect-square min-w-0" aria-hidden />
+                  <div key={`e-${i}`} className="aspect-square min-w-0 bg-bg-deep/5 dark:bg-bg-deep/20" aria-hidden />
                 ) : (
                   <div key={`${year}-${month}-${cell}`} className="aspect-square min-w-0">
                     <AvailabilityCalendarDay
@@ -394,7 +395,7 @@ export function RentalAvailabilityCalendarPanel({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={fadeQuick}
-          className={`mt-4 rounded-xl border border-border-subtle/80 bg-transparent px-3 py-2.5 text-xs text-text-muted lg:mt-3 lg:rounded-lg ${tight ? "lg:px-2 lg:py-1.5 lg:text-[10px]" : "lg:px-2.5 lg:py-2 lg:text-[11px]"}`}
+          className={`mt-2 rounded-md border border-border-subtle/70 bg-transparent px-2.5 py-2 text-[11px] text-text-muted lg:mt-2 ${tight ? "lg:px-2 lg:py-1.5 lg:text-[10px]" : "lg:text-[10px]"}`}
         >
           <p>
             <span className="text-text">Alış:</span>{" "}
@@ -462,7 +463,7 @@ export function RentalAvailabilityCalendarPanel({
           <button
             type="button"
             onClick={apply}
-            className="ml-auto rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white shadow-md shadow-accent/20 transition-[filter] duration-150 hover:brightness-105 active:brightness-95 sm:px-5 sm:text-sm lg:px-3 lg:py-1.5 lg:text-[11px]"
+            className="ml-auto rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-fg shadow-md shadow-accent/20 transition-[filter] duration-150 hover:brightness-105 active:brightness-95 sm:px-5 sm:text-sm lg:px-3 lg:py-1.5 lg:text-[11px]"
           >
             Uygula
           </button>
@@ -501,7 +502,7 @@ function AvailabilityCalendarDay({
     return (
       <div
         title="Dolu — seçilemez"
-        className={`cal-cell-blocked-fill relative flex h-full w-full min-w-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-medium tabular-nums [border-color:var(--cal-blocked-border)] lg:rounded-lg ${embedded ? "lg:text-[9px]" : "lg:text-[10px]"}`}
+        className={`cal-cell-blocked-fill relative flex h-full w-full min-w-0 items-center justify-center overflow-hidden rounded-none border-0 text-[11px] font-medium tabular-nums ${embedded ? "lg:text-[9px]" : "lg:text-[10px]"}`}
       >
         <span className="leading-none text-[color:var(--cal-blocked-day)]">{day}</span>
         <span
@@ -514,24 +515,18 @@ function AvailabilityCalendarDay({
   }
 
   const disabled = disabledPast;
-  const today = todayIso();
-  const isToday = iso === today;
 
-  /** Müsait: site yüzeyleri */
   const freeCell =
-    "border border-border-subtle/80 bg-transparent text-text hover:border-accent/30";
+    "border-0 bg-transparent text-text hover:bg-bg-raised/70 dark:hover:bg-bg-deep/55";
 
-  const todayRing = isToday ? "ring-1 ring-inset ring-orange-400 border-orange-400/70 bg-orange-500/10" : "";
-
-  /** Alış / teslim uçları: aynı accent; metin hücre içinde ayrışır */
   const edgeCell =
-    "z-[1] border border-accent/55 bg-accent font-semibold text-white shadow-md shadow-accent/25 ring-1 ring-accent/35 hover:brightness-105";
+    "z-[1] border-0 bg-accent font-semibold text-accent-fg shadow-none hover:brightness-105";
 
   let stateClass: string;
   let cellLabel: "alis" | "teslim" | "ikisi" | null = null;
 
   if (disabled) {
-    stateClass = "cursor-not-allowed text-text-muted/25";
+    stateClass = "cursor-not-allowed border-0 bg-transparent text-text-muted/30";
   } else if (sameDaySelection) {
     stateClass = edgeCell;
     cellLabel = "ikisi";
@@ -542,10 +537,9 @@ function AvailabilityCalendarDay({
     stateClass = edgeCell;
     cellLabel = "teslim";
   } else if (inRange) {
-    stateClass =
-      "border border-accent/25 bg-accent/[0.12] text-text hover:border-accent/40 hover:bg-accent/[0.16]";
+    stateClass = "border-0 bg-accent/15 text-text hover:bg-accent/22";
   } else {
-    stateClass = `${freeCell} hover:brightness-[1.01] ${todayRing}`;
+    stateClass = freeCell;
   }
 
   return (
@@ -553,7 +547,7 @@ function AvailabilityCalendarDay({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`relative box-border flex h-full w-full min-w-0 items-center justify-center overflow-hidden rounded-xl text-xs font-medium tabular-nums transition-[background-color,border-color,box-shadow,filter,transform] duration-150 active:scale-[0.98] lg:rounded-lg ${embedded ? "lg:text-[9px]" : "lg:text-[10px]"} ${stateClass}`}
+      className={`relative box-border flex h-full w-full min-w-0 items-center justify-center overflow-hidden rounded-none text-[11px] font-medium tabular-nums transition-[background-color,filter,transform] duration-150 active:scale-[0.98] ${embedded ? "lg:text-[9px]" : "lg:text-[10px]"} ${stateClass}`}
     >
       <span className="leading-none">{day}</span>
       {cellLabel === "alis" && (

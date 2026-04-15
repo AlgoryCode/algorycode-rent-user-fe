@@ -1,77 +1,96 @@
 @import "tailwindcss";
 
 /*
-  Tema: html[data-theme="light"] | html[data-theme="dark"]
-  Zemin nötr (beyaz / koyu gri); mint yalnızca vurgu (accent) ve navbar’da kullanılır.
+  Kurumsal tema: navy ailesi + şampanya altın vurgu (premium / güven).
+  html[data-theme="light"] | html[data-theme="dark"]
 */
 
-/* Gece: nötr koyu zemin, mint yalnızca accent / butonlarda */
+/* Gece: derin lacivert zemin, altın CTA */
 html[data-theme="dark"],
 html:not([data-theme]) {
   color-scheme: dark;
-  --bg-deep: #0f1218;
-  --bg-raised: #181c24;
-  --bg-card: #1e232d;
-  --border-subtle: rgba(255, 255, 255, 0.1);
-  --accent: #34d399;
-  --accent-dim: #10b981;
-  --text: #f8fafc;
-  --text-muted: #cbd5e1;
-  --glow: rgba(52, 211, 153, 0.28);
-  --cal-available-bg: rgba(52, 211, 153, 0.18);
-  --cal-available-fg: #d1fae5;
-  --cal-available-ring: rgba(52, 211, 153, 0.5);
-  --cal-range-bg: rgba(52, 211, 153, 0.14);
-  --cal-range-ring: rgba(52, 211, 153, 0.35);
-  /* Takvim dolu: üstte mat kırmızı → alta saydam (area chart dolgusu) */
+  --bg-deep: #060a12;
+  --bg-raised: #0c1424;
+  --bg-card: #101b2f;
+  --border-subtle: rgba(226, 232, 240, 0.1);
+  --accent: #c9a962;
+  --accent-dim: #a38645;
+  --accent-fg: #0a1424;
+  --text: #eef2f8;
+  --text-muted: #8b9bb8;
+  --glow: rgba(201, 169, 98, 0.22);
+  --cal-available-bg: rgba(96, 165, 250, 0.14);
+  --cal-available-fg: #dbeafe;
+  --cal-available-ring: rgba(96, 165, 250, 0.42);
+  --cal-range-bg: rgba(96, 165, 250, 0.12);
+  --cal-range-ring: rgba(96, 165, 250, 0.32);
   --cal-blocked-fill: linear-gradient(
     180deg,
-    rgba(232, 90, 90, 0.48) 0%,
-    rgba(248, 113, 113, 0.22) 42%,
-    rgba(248, 113, 113, 0.07) 74%,
+    rgba(232, 90, 90, 0.45) 0%,
+    rgba(248, 113, 113, 0.2) 42%,
+    rgba(248, 113, 113, 0.06) 74%,
     rgba(248, 113, 113, 0) 100%
   );
-  --cal-blocked-border: rgba(248, 113, 113, 0.34);
-  --cal-blocked-day: rgba(254, 226, 226, 0.72);
+  --cal-blocked-border: rgba(248, 113, 113, 0.32);
+  --cal-blocked-day: rgba(254, 226, 226, 0.65);
   --cal-blocked-label: #fecaca;
+  --navy-hero: #0b1e3b;
+  --steel: #9bb5d8;
 }
 
-/* Gündüz: beyaz yüzey, nötr çerçeve */
+/* Gündüz: açık nötr zemin, lacivert birincil, altın vurgu */
+/* Sabit üst bar yüksekliği — Header ve sayfa üst boşluğu senkron */
+:root {
+  --header-h: 4.75rem;
+}
+@media (min-width: 640px) {
+  :root {
+    --header-h: 5.35rem;
+  }
+}
+
 html[data-theme="light"] {
   color-scheme: light;
-  --bg-deep: #ffffff;
-  --bg-raised: #ffffff;
+  --bg-deep: #eef1f6;
+  --bg-raised: #f4f6fa;
   --bg-card: #ffffff;
-  --border-subtle: rgba(15, 23, 42, 0.1);
-  --accent: #059669;
-  --accent-dim: #047857;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --glow: rgba(5, 150, 105, 0.2);
-  --cal-available-bg: #d1fae5;
-  --cal-available-fg: #065f46;
-  --cal-available-ring: #34d399;
-  --cal-range-bg: rgba(167, 243, 208, 0.65);
-  --cal-range-ring: #10b981;
+  --border-subtle: rgba(15, 27, 46, 0.14);
+  --accent: #1e3a5f;
+  --accent-dim: #152a45;
+  --accent-fg: #ffffff;
+  --text: #0c1526;
+  --text-muted: #4a5d78;
+  --glow: rgba(30, 58, 95, 0.18);
+  --cal-available-bg: rgba(30, 58, 95, 0.08);
+  --cal-available-fg: #1e3a5f;
+  --cal-available-ring: rgba(30, 58, 95, 0.35);
+  --cal-range-bg: rgba(30, 58, 95, 0.1);
+  --cal-range-ring: rgba(30, 58, 95, 0.28);
   --cal-blocked-fill: linear-gradient(
     180deg,
-    rgba(185, 28, 28, 0.3) 0%,
-    rgba(220, 38, 38, 0.14) 44%,
-    rgba(220, 38, 38, 0.05) 76%,
+    rgba(185, 28, 28, 0.28) 0%,
+    rgba(220, 38, 38, 0.12) 44%,
+    rgba(220, 38, 38, 0.04) 76%,
     rgba(220, 38, 38, 0) 100%
   );
-  --cal-blocked-border: rgba(185, 28, 28, 0.28);
-  --cal-blocked-day: rgba(127, 29, 29, 0.62);
+  --cal-blocked-border: rgba(185, 28, 28, 0.26);
+  --cal-blocked-day: rgba(127, 29, 29, 0.55);
   --cal-blocked-label: #991b1b;
+  /* Kurumsal detay / üst bant (light) */
+  --navy-hero: #0b1e3b;
+  --steel: #8ba4c7;
 }
 
 @theme inline {
+  --color-navy-hero: var(--navy-hero);
+  --color-steel: var(--steel);
   --color-bg-deep: var(--bg-deep);
   --color-bg-raised: var(--bg-raised);
   --color-bg-card: var(--bg-card);
   --color-border-subtle: var(--border-subtle);
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
+  --color-accent-fg: var(--accent-fg);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
   --font-sans: var(--font-dm-sans);
@@ -80,12 +99,15 @@ html[data-theme="light"] {
 
 html {
   scroll-behavior: smooth;
+  /* overflow:hidden (ör. menü açık) iken scrollbar kaybolunca sayfanın yatayda “genişlemesini” önler */
+  scrollbar-gutter: stable;
 }
 
 body {
   background: var(--bg-deep);
   color: var(--text);
   font-family: var(--font-dm-sans), system-ui, sans-serif;
+  overflow-x: clip;
 }
 
 .cal-cell-blocked-fill {
@@ -140,17 +162,37 @@ html[data-theme="light"] .noise::after {
 }
 
 .text-gradient-accent {
-  background: linear-gradient(135deg, #6ee7b7 0%, var(--accent) 50%, var(--accent-dim) 100%);
+  background: linear-gradient(135deg, #e8dcc4 0%, var(--accent) 42%, var(--accent-dim) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .text-gradient-gold {
-  background: linear-gradient(135deg, #6ee7b7 0%, var(--accent) 50%, var(--accent-dim) 100%);
+  background: linear-gradient(135deg, #f5edd8 0%, var(--accent) 50%, var(--accent-dim) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+@keyframes premium-shine {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-premium-line {
+  animation: premium-shine 4s ease-in-out infinite;
+}
+
+.hero-navy-wash {
+  background:
+    radial-gradient(ellipse 100% 90% at 100% 0%, rgba(201, 169, 98, 0.09) 0%, transparent 52%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-raised) 55%, var(--bg-deep) 100%);
 }
 
 input.rental-date {

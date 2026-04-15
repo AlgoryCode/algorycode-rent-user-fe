@@ -69,14 +69,14 @@ function UyeOlPageContent() {
 
         {success ? (
           <div className="mt-8 space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4 text-center">
-            <div className="text-green-600">
+            <div className="text-accent">
               <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h2 className="text-lg font-semibold text-text">Başarılı!</h2>
             <p className="text-sm text-text-muted">Başarıyla kaydınız oluşturuldu. Giriş yapabilirsiniz.</p>
-            <Link href={`/giris-yap?next=${encodeURIComponent(next)}`} className="inline-block w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white">
+            <Link href={`/giris-yap?next=${encodeURIComponent(next)}`} className="inline-block w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg">
               Giriş Yap
             </Link>
           </div>
@@ -98,7 +98,7 @@ function UyeOlPageContent() {
               Şifre
               <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </label>
-            <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
+            <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
           </form>
         )}
 

@@ -99,23 +99,30 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
     filters.startLocationId;
 
   return (
-    <div className="pb-16 pt-[4.5rem] sm:pt-20">
-      <div className="border-b border-border-subtle bg-bg-raised/40 px-4 py-8 sm:px-6 sm:py-9">
-        <div className="mx-auto max-w-6xl">
+    <div className="pb-16 pt-[var(--header-h)]">
+      <div className="relative overflow-hidden border-b border-border-subtle bg-bg-deep px-4 py-10 sm:px-6 sm:py-12">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(120deg, transparent 40%, rgba(201,169,98,0.35) 50%, transparent 60%)",
+            backgroundSize: "200% 100%",
+          }}
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-6xl">
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">
-              Filo araması
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-text sm:text-3xl">
-              Size uygun <span className="text-accent">aracı bulun</span>
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-accent">Kürasyon filo</p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-[1.12] tracking-tight text-text sm:text-4xl">
+              Filonuzdaki <span className="text-accent">doğru aracı</span> seçin
             </h1>
-            <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-text-muted sm:text-sm">
-              Tarih ve lokasyonu sabitledikten sonra kategori, yakıt, koltuk ve bütçe
-              filtreleriyle listeyi daraltın. Sonuçlar anında güncellenir.
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-muted sm:text-[15px]">
+              Kurumsal güvenceyle şeffaf günlük fiyatlar; filtreler ve arama URL ile paylaşılabilir. Teslim
+              noktası ve tarihlerinizi sabitledikten sonra listeyi daraltın.
             </p>
           </motion.div>
         </div>
@@ -197,7 +204,7 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="mt-10 rounded-xl border border-border-subtle bg-bg-card/60 p-8 text-center sm:p-10"
+                className="mt-10 border border-border-subtle bg-bg-card p-8 text-center sm:p-10"
               >
                 <p className="text-xl font-semibold text-text">Sonuç bulunamadı</p>
                 <p className="mt-2 text-sm text-text-muted">
@@ -206,7 +213,7 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
                 <motion.button
                   type="button"
                   onClick={clearAllFilters}
-                  className="mt-5 rounded-md bg-accent px-5 py-2.5 text-[13px] font-semibold text-white"
+                  className="mt-5 rounded-md bg-accent px-5 py-2.5 text-[13px] font-semibold text-accent-fg"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                 >
@@ -218,17 +225,10 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
                 key="grid"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mt-8 grid gap-5 sm:grid-cols-2 sm:gap-6"
+                className="mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4"
               >
                 {results.map((v, i) => (
-                  <motion.div
-                    key={v.id}
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05, duration: 0.45 }}
-                  >
-                    <VehicleCard vehicle={v} querySuffix={querySuffix} />
-                  </motion.div>
+                  <VehicleCard key={v.id} vehicle={v} querySuffix={querySuffix} revealDelay={i * 0.06} />
                 ))}
               </motion.div>
             )}
@@ -314,7 +314,7 @@ function FilterPanel({
   ];
 
   return (
-    <div className="space-y-6 rounded-xl border border-border-subtle bg-bg-card/50 p-4 sm:p-5">
+    <div className="space-y-6 border-2 border-border-subtle bg-bg-card p-5 sm:p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
           Günlük bütçe
@@ -392,10 +392,10 @@ function FilterPanel({
                   else set.add(c);
                   pushFilters({ categories: [...set] });
                 }}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                   on
-                    ? "border-accent bg-accent/15 text-accent"
-                    : "border-border-subtle text-text-muted hover:border-accent/30 hover:text-text"
+                    ? "border-accent bg-accent/12 text-accent"
+                    : "border-border-subtle text-text-muted hover:border-accent/35 hover:text-text"
                 }`}
               >
                 {c}
@@ -415,9 +415,9 @@ function FilterPanel({
               key={t.label}
               type="button"
               onClick={() => pushFilters({ transmission: t.id })}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+              className={`border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${
                 filters.transmission === t.id
-                  ? "border-accent bg-accent/15 text-accent"
+                  ? "border-accent bg-accent/12 text-accent"
                   : "border-border-subtle text-text-muted hover:text-text"
               }`}
             >
@@ -437,9 +437,9 @@ function FilterPanel({
               key={t.label}
               type="button"
               onClick={() => pushFilters({ fuel: t.id })}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium capitalize ${
+              className={`border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide capitalize ${
                 filters.fuel === t.id
-                  ? "border-accent bg-accent/15 text-accent"
+                  ? "border-accent bg-accent/12 text-accent"
                   : "border-border-subtle text-text-muted hover:text-text"
               }`}
             >
@@ -459,9 +459,9 @@ function FilterPanel({
               key={n ?? "any"}
               type="button"
               onClick={() => pushFilters({ seatsMin: n })}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+              className={`border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${
                 filters.seatsMin === n
-                  ? "border-accent bg-accent/15 text-accent"
+                  ? "border-accent bg-accent/12 text-accent"
                   : "border-border-subtle text-text-muted hover:text-text"
               }`}
             >

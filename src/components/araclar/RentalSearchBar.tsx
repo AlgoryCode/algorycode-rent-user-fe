@@ -99,7 +99,7 @@ export function RentalSearchBar({
     return (
       <>
         {modal}
-        <motion.div layout className={`${rentSoftSearchShellClass} px-3 py-2.5 sm:px-4`}>
+        <div className={`${rentSoftSearchShellClass} px-3 py-2.5 sm:px-4`}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
               <label className="sr-only" htmlFor="rental-pickup-loc">
@@ -145,7 +145,7 @@ export function RentalSearchBar({
               <motion.button
                 type="button"
                 onClick={submit}
-                className="h-9 shrink-0 rounded-lg bg-accent px-4 text-xs font-semibold text-white shadow-sm sm:px-5 sm:text-[13px]"
+                className="h-9 shrink-0 rounded-lg bg-accent px-4 text-xs font-semibold text-accent-fg shadow-sm sm:px-5 sm:text-[13px]"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -153,7 +153,7 @@ export function RentalSearchBar({
               </motion.button>
             </div>
           </div>
-        </motion.div>
+        </div>
       </>
     );
   }
@@ -161,7 +161,7 @@ export function RentalSearchBar({
   return (
     <>
       {modal}
-      <motion.div layout className={`${rentSoftSearchShellClass} p-4 sm:p-5`}>
+      <div className={`${rentSoftSearchShellClass} p-4 sm:p-5`}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-text-muted">
           Tarih & lokasyon
         </p>
@@ -208,7 +208,7 @@ export function RentalSearchBar({
             <motion.button
               type="button"
               onClick={submit}
-              className="h-10 w-full rounded-lg bg-accent px-5 text-sm font-semibold text-white shadow-sm transition-[filter] hover:brightness-105 sm:w-auto xl:w-full"
+              className="h-10 w-full rounded-lg bg-accent px-5 text-sm font-semibold text-accent-fg shadow-sm transition-[filter] hover:brightness-105 sm:w-auto xl:w-full"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >
@@ -216,7 +216,7 @@ export function RentalSearchBar({
             </motion.button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </>
   );
 }

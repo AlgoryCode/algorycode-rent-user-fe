@@ -1,6 +1,15 @@
 import { pickupLocations } from "@/data/locations";
 import { parseIsoDate, rentalNights } from "@/lib/dates";
 
+const uuidLikeRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isAllowedLocationId(id: string): boolean {
+  const t = id.trim();
+  if (!t) return false;
+  if (pickupLocations.some((l) => l.id === t)) return true;
+  return uuidLikeRe.test(t);
+}
+
 export function firstSearchParam(
   v: string | string[] | undefined,
 ): string | undefined {
@@ -19,11 +28,8 @@ export function isCompleteBookingQuery(p: {
 }): boolean {
   if (!p.arac?.trim()) return false;
   if (!p.alis || !p.teslim || !p.lokasyon) return false;
-  if (!pickupLocations.some((l) => l.id === p.lokasyon)) return false;
-  if (
-    p.lokasyonTeslim &&
-    !pickupLocations.some((l) => l.id === p.lokasyonTeslim)
-  ) {
+  if (!isAllowedLocationId(p.lokasyon)) return false;
+  if (p.lokasyonTeslim && !isAllowedLocationId(p.lokasyonTeslim)) {
     return false;
   }
   const a = parseIsoDate(p.alis);

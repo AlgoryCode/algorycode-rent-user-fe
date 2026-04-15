@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/lib/i18n/messages";
 import type { RentAppRole } from "@/lib/rbac/rent-roles";
 import { hasRentManagerAccess } from "@/lib/rbac/rent-roles";
 
@@ -13,7 +14,8 @@ export type RentRouteRule = {
   access: RentRouteAccess;
   /** Panel menüsünde gösterilsin mi (yönetici linkleri tek kaynak) */
   showInManagerNav?: boolean;
-  navLabel?: string;
+  /** `LocaleProvider` / `messages` anahtarı */
+  navLabelKey?: MessageKey;
 };
 
 function normalizePath(pathname: string): string {
@@ -26,13 +28,13 @@ export const RENT_ROUTE_RULES: RentRouteRule[] = [
     pathPrefix: "/odemeler",
     access: "rent_manager",
     showInManagerNav: true,
-    navLabel: "Ödemeler",
+    navLabelKey: "manager.nav.payments",
   },
   {
     pathPrefix: "/kullanicilar",
     access: "rent_manager",
     showInManagerNav: true,
-    navLabel: "Kullanıcılar",
+    navLabelKey: "manager.nav.users",
   },
 ];
 
@@ -74,9 +76,9 @@ export function canAccessRentPath(roles: readonly RentAppRole[], pathname: strin
 }
 
 /** Header vb. için: yöneticiye gösterilecek nav girdileri (tek kaynak). */
-export function getRentManagerNavLinks(): { href: string; label: string }[] {
-  return RENT_ROUTE_RULES.filter((r) => r.showInManagerNav && r.navLabel).map((r) => ({
+export function getRentManagerNavLinks(): { href: string; labelKey: MessageKey }[] {
+  return RENT_ROUTE_RULES.filter((r) => r.showInManagerNav && r.navLabelKey).map((r) => ({
     href: normalizePath(r.pathPrefix),
-    label: r.navLabel as string,
+    labelKey: r.navLabelKey as MessageKey,
   }));
 }

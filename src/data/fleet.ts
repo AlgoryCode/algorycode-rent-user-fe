@@ -1,3 +1,5 @@
+import { fromTryAmount, type CurrencyCode } from "@/lib/i18n/config";
+
 export type Transmission = "otomatik" | "manuel";
 export type FuelType = "benzin" | "dizel" | "hibrit" | "elektrik";
 
@@ -31,6 +33,19 @@ export type FleetVehicle = {
   /** Başlangıç kiralama konumu */
   pickupLocationId?: string;
   pickupLocationLabel?: string;
+  /** rent-service handover UUID */
+  defaultPickupHandoverLocationId?: string;
+  defaultReturnHandoverLocationId?: string;
+  defaultPickupHandoverName?: string;
+  defaultReturnHandoverName?: string;
+  /** Araç özel seçenek şablonları (rent API) */
+  rentOptionDefinitions?: {
+    id: string;
+    title: string;
+    description?: string;
+    price: number;
+    active?: boolean;
+  }[];
 };
 
 export const fleet: FleetVehicle[] = [
@@ -259,20 +274,50 @@ export const fleet: FleetVehicle[] = [
   },
 ];
 
-export function formatTry(n: number) {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    maximumFractionDigits: 0,
-  }).format(n);
+function intlLocaleForCurrency(c: CurrencyCode): string {
+  switch (c) {
+    case "TRY":
+      return "tr-TR";
+    case "EUR":
+      return "de-DE";
+    case "GBP":
+      return "en-GB";
+    case "CHF":
+      return "de-CH";
+    case "SAR":
+      return "ar-SA";
+    default:
+      return "en-US";
+  }
 }
 
-/** Liste / özet satırları için ondalıklı TL metni (örn. 5.257,75 TL) */
-export function formatTryDecimal(n: number) {
-  return `${new Intl.NumberFormat("tr-TR", {
+/** `amountTry`: veri kaynağı TRY; `currency` seçimine göre gösterge kur ile çevrilir. */
+export function formatMoney(amountTry: number, currency: CurrencyCode): string {
+  const v = fromTryAmount(amountTry, currency);
+  return new Intl.NumberFormat(intlLocaleForCurrency(currency), {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(v);
+}
+
+export function formatMoneyDecimal(amountTry: number, currency: CurrencyCode): string {
+  const v = fromTryAmount(amountTry, currency);
+  return new Intl.NumberFormat(intlLocaleForCurrency(currency), {
+    style: "currency",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(n)} TL`;
+  }).format(v);
+}
+
+export function formatTry(n: number) {
+  return formatMoney(n, "TRY");
+}
+
+/** Liste / özet satırları için ondalıklı para metni (varsayılan TRY). */
+export function formatTryDecimal(n: number) {
+  return formatMoneyDecimal(n, "TRY");
 }
 
 export function getVehicleById(id: string): FleetVehicle | undefined {

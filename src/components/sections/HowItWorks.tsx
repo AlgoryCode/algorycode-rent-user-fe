@@ -36,7 +36,7 @@ export function HowItWorks() {
           {steps.map((s, i) => (
             <Reveal key={s.title} delay={i * 0.08}>
               <motion.div
-                className="relative h-full rounded-xl border border-border-subtle bg-bg-card p-5 transition-colors hover:border-accent/45 sm:p-6"
+                className="relative h-full rounded-sm border border-border-subtle bg-bg-card p-5 transition-colors hover:border-accent/40 sm:p-6"
                 whileHover={{ y: -2 }}
               >
                 <span className="text-3xl font-semibold tabular-nums text-text-muted/20">{s.icon}</span>

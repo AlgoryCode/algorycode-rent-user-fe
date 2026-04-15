@@ -3,29 +3,31 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FleetVehicle } from "@/data/fleet";
-import { formatTry } from "@/data/fleet";
-import { blockedDaysInInclusiveRange, blockedSetForVehicle } from "@/data/availability";
+import type { FleetVehicle, FuelType } from "@/data/fleet";
+import { useI18n } from "@/components/i18n/LocaleProvider";
 import { pickupLocations } from "@/data/locations";
-import { RentalAvailabilityCalendarPanel } from "@/components/calendar/RentalAvailabilityCalendarPanel";
 import { compareIso } from "@/lib/calendarGrid";
-import { parseIsoDate, rentalNights } from "@/lib/dates";
-import { AnimatedButton } from "@/components/ui/AnimatedButton";
-import { EngineIcon, LuggageIcon, SeatIcon } from "@/components/ui/VehicleSpecIcons";
-import { Reveal } from "@/components/ui/Reveal";
-import { ReservationCalendarSupportAside } from "@/components/vehicle/ReservationCalendarSupportAside";
-import { VehicleRentalConditionsCard } from "@/components/vehicle/VehicleRentalConditionsCard";
-import { VehicleRentalPriceDetails } from "@/components/vehicle/VehicleRentalPriceDetails";
+import { addDays, parseIsoDate, rentalNights, todayIso, toIsoDate } from "@/lib/dates";
+import { CalendarDaysIcon } from "@/components/ui/Icons";
+import { CheckCircleSoftIcon, MapPinGarageIcon, XCircleSoftIcon } from "@/components/ui/VehicleSpecIcons";
 import { VehicleRentalFaqPanel } from "@/components/vehicle/VehicleRentalFaqPanel";
 import { fetchHasBffSession } from "@/lib/bff-access-token";
 
 const defaultGarageCopy =
   "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
 
-type VehicleSpecIconKind = "seat" | "engine" | "luggage";
+function fuelLabel(f: FuelType): string {
+  const labels: Record<FuelType, string> = {
+    benzin: "Benzin",
+    dizel: "Dizel",
+    hibrit: "Hibrit",
+    elektrik: "Elektrik",
+  };
+  return labels[f];
+}
 
 function GalleryThumb({
   src,
@@ -33,21 +35,30 @@ function GalleryThumb({
   onSelect,
   sizes,
   priority,
+  variant = "default",
 }: {
   src: string;
   selected: boolean;
   onSelect: () => void;
   sizes: string;
   priority?: boolean;
+  variant?: "default" | "onDark";
 }) {
+  const selectedCls =
+    variant === "onDark"
+      ? "border-sky-400 opacity-100 ring-2 ring-sky-400/40"
+      : "border-accent opacity-100 ring-1 ring-accent";
+  const idleCls =
+    variant === "onDark"
+      ? "border-white/25 opacity-90 hover:border-white/45 hover:opacity-100"
+      : "border-border-subtle opacity-90 hover:border-text/25 hover:opacity-100";
+  const bg = variant === "onDark" ? "bg-black/40" : "bg-bg-card";
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`relative aspect-[4/3] w-[4.5rem] shrink-0 overflow-hidden rounded-lg border-2 bg-bg-raised outline-none ring-accent/0 transition-[border-color,opacity,box-shadow,ring] duration-150 focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-[5.25rem] ${
-        selected
-          ? "border-accent opacity-100 shadow-sm shadow-accent/20"
-          : "border-transparent opacity-80 hover:border-border-subtle hover:opacity-100"
+      className={`relative aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-md border ${bg} outline-none transition-[border-color,opacity] duration-100 focus-visible:ring-2 focus-visible:ring-sky-400 sm:w-[5.5rem] ${
+        selected ? selectedCls : idleCls
       }`}
       aria-label={selected ? "Seçili görsel" : "Bu görseli önizlemede göster"}
     >
@@ -63,8 +74,8 @@ export function VehicleDetailView({
   vehicle: FleetVehicle;
   queryString: string;
 }) {
+  const { formatPrice } = useI18n();
   const router = useRouter();
-  const pathname = usePathname();
   const [activeImage, setActiveImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const sp = useMemo(() => new URLSearchParams(queryString), [queryString]);
@@ -96,27 +107,19 @@ export function VehicleDetailView({
 
   const pickup = sp.get("alis") || "";
   const ret = sp.get("teslim") || "";
-  const defaultLocId = pickupLocations[0]?.id ?? "ist-airport-ist";
+  const defaultLocId =
+    vehicle.defaultPickupHandoverLocationId ?? pickupLocations[0]?.id ?? "ist-airport-ist";
+  const defaultReturnLocId = vehicle.defaultReturnHandoverLocationId ?? defaultLocId;
   const pickupLocId = sp.get("lokasyon") || defaultLocId;
-  const returnLocId = sp.get("lokasyonTeslim") || pickupLocId;
+  const returnLocId = sp.get("lokasyonTeslim") || defaultReturnLocId;
   const planVehicleAbroad = sp.get("ulkeDisi") === "1";
 
-  const [reserveError, setReserveError] = useState<string | null>(null);
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
   const [bffSession, setBffSession] = useState(false);
 
   useEffect(() => {
     void fetchHasBffSession().then(setBffSession);
   }, []);
-
-  const pushQuery = useCallback(
-    (mutate: (q: URLSearchParams) => void) => {
-      const q = new URLSearchParams(queryString);
-      mutate(q);
-      router.replace(`${pathname}?${q.toString()}`, { scroll: false });
-    },
-    [pathname, queryString, router],
-  );
 
   const nights = useMemo(() => {
     const a = parseIsoDate(pickup);
@@ -131,67 +134,49 @@ export function VehicleDetailView({
     compareIso(ret, pickup) > 0 &&
     nights != null;
 
+  /** URL’de geçerli aralık yoksa rezervasyon sayfası gate’i için varsayılan aralık. */
+  const reserveDatePair = useMemo(() => {
+    if (hasRangeSelected) return { alis: pickup, teslim: ret };
+    const start = todayIso();
+    const startD = parseIsoDate(start)!;
+    return { alis: start, teslim: toIsoDate(addDays(startD, 3)) };
+  }, [hasRangeSelected, pickup, ret]);
+
   const buildReserveHref = useCallback(() => {
     const q = new URLSearchParams();
     q.set("arac", vehicle.id);
-    q.set("alis", pickup);
-    q.set("teslim", ret);
+    q.set("alis", reserveDatePair.alis);
+    q.set("teslim", reserveDatePair.teslim);
     q.set("lokasyon", pickupLocId);
     q.set("lokasyonTeslim", returnLocId);
     if (planVehicleAbroad) q.set("ulkeDisi", "1");
     return `/rezervasyon?${q.toString()}`;
-  }, [pickup, ret, pickupLocId, returnLocId, planVehicleAbroad, vehicle.id]);
+  }, [reserveDatePair, pickupLocId, returnLocId, planVehicleAbroad, vehicle.id]);
 
-  const applyDatesToUrl = (p: string, r: string) => {
-    pushQuery((q) => {
-      q.set("alis", p);
-      q.set("teslim", r);
-      if (!q.get("lokasyon")) q.set("lokasyon", defaultLocId);
-      if (!q.get("lokasyonTeslim")) q.set("lokasyonTeslim", q.get("lokasyon")!);
-    });
-  };
-
-  const clearDatesFromUrl = useCallback(() => {
-    setReserveError(null);
-    pushQuery((q) => {
-      q.delete("alis");
-      q.delete("teslim");
-    });
-  }, [pushQuery]);
-
-  const goReserve = () => {
-    setReserveError(null);
-    if (!hasRangeSelected) return;
-    const blocked = blockedSetForVehicle(vehicle.id);
-    const overlap = blockedDaysInInclusiveRange(pickup, ret, blocked);
-    if (overlap.length > 0) {
-      const fmt = overlap.slice(0, 3).map((d) =>
-        parseIsoDate(d)!.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }),
-      );
-      const more = overlap.length > 3 ? ` +${overlap.length - 3}` : "";
-      setReserveError(
-        `Seçtiğiniz aralıkta dolu günler var: ${fmt.join(", ")}${more}. Takvimden aralığı değiştirin.`,
-      );
-      return;
-    }
-    const target = buildReserveHref();
+  const goToReservationPage = useCallback(() => {
     if (bffSession) {
-      router.push(target);
+      router.push(buildReserveHref());
       return;
     }
     setAuthPromptOpen(true);
-  };
-
-  const specItems: { label: string; value: string; icon?: VehicleSpecIconKind }[] = [
-    { label: "Model yılı", value: String(vehicle.year) },
-    { label: "Vites", value: vehicle.transmission === "otomatik" ? "Otomatik" : "Manuel" },
-    { label: "Motor", value: vehicle.engine, icon: "engine" },
-    ...(vehicle.powerKw > 0 ? [{ label: "Güç", value: `${vehicle.powerKw} kW` }] : []),
-    { label: "Bagaj", value: `${vehicle.luggage} L`, icon: "luggage" },
-    { label: "Koltuk", value: `${vehicle.seats} kişi`, icon: "seat" },
-  ];
+  }, [bffSession, buildReserveHref, router]);
 
   const garageText = vehicle.garageLocation ?? defaultGarageCopy;
+
+  /** Hero: kompakt teknik özet (lacivert blokta okunaklı, sade). */
+  const heroVehicleSpecs = useMemo(
+    () => [
+      {
+        label: "Vites",
+        value: vehicle.transmission === "otomatik" ? "Otomatik" : "Manuel",
+      },
+      { label: "Yakıt", value: fuelLabel(vehicle.fuel) },
+      { label: "Model", value: String(vehicle.year) },
+      { label: "Koltuk", value: String(vehicle.seats) },
+      { label: "Bagaj", value: `${vehicle.luggage} L` },
+    ],
+    [vehicle.fuel, vehicle.luggage, vehicle.seats, vehicle.transmission, vehicle.year],
+  );
 
   const openLightbox = (index: number) => {
     setActiveImage(index);
@@ -208,30 +193,13 @@ export function VehicleDetailView({
           onSelect={() => setActiveImage(i)}
           sizes="(max-width:640px) 72px, 96px"
           priority={i === 0}
+          variant="onDark"
         />
       ))}
     </div>
   );
 
   const mainGallerySrc = galleryImages[activeImage] ?? vehicle.image;
-
-  const calendarBlock = (
-    <section id="arac-takvim" className="scroll-mt-20 w-full min-w-0 max-w-full sm:scroll-mt-24 lg:scroll-mt-28">
-      <RentalAvailabilityCalendarPanel
-        embedded
-        embeddedWide
-        className="rounded-xl bg-transparent"
-        vehicleId={vehicle.id}
-        pickup={pickup}
-        returnDate={ret}
-        syncToken={queryString}
-        footerMode="inline"
-        onCommit={applyDatesToUrl}
-        onInlineReset={clearDatesFromUrl}
-        title="Rezervasyon takvimi"
-      />
-    </section>
-  );
 
   const lightbox =
     typeof window !== "undefined" &&
@@ -262,7 +230,7 @@ export function VehicleDetailView({
               Kapat
             </button>
           </div>
-          <div className="relative aspect-[16/10] max-h-[min(78vh,720px)] w-full overflow-hidden rounded-2xl border border-white/15 bg-black/40 shadow-2xl">
+          <div className="relative aspect-[16/10] max-h-[min(78vh,720px)] w-full overflow-hidden rounded-sm border border-white/20 bg-black/50 shadow-2xl">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeImage}
@@ -315,7 +283,7 @@ export function VehicleDetailView({
     );
 
   return (
-    <div className={`pt-[4.5rem] sm:pt-20 ${hasRangeSelected ? "pb-28 sm:pb-20" : "pb-20"}`}>
+    <div className="pb-20 pt-[var(--header-h)]">
       {lightbox}
       {authPromptOpen && (
         <div className="fixed inset-0 z-[650] flex items-end justify-center p-3 sm:items-center sm:p-4">
@@ -325,7 +293,7 @@ export function VehicleDetailView({
             aria-label="Kapat"
             onClick={() => setAuthPromptOpen(false)}
           />
-          <div className="relative z-[651] w-full max-w-md rounded-2xl border border-border-subtle bg-bg-card/95 p-4 shadow-xl backdrop-blur">
+          <div className="relative z-[651] w-full max-w-md rounded-sm border border-border-subtle bg-bg-card p-4 shadow-xl">
             <h3 className="text-base font-semibold text-text">Rezervasyona nasıl devam etmek istersiniz?</h3>
             <p className="mt-1.5 text-sm text-text-muted">
               Üye olmadan devam edebilir ya da giriş yaparak bilgilerinizi otomatik doldurabilirsiniz.
@@ -335,7 +303,7 @@ export function VehicleDetailView({
                 type="button"
                 onClick={() => {
                   setAuthPromptOpen(false);
-                  router.push(`${buildReserveHref()}&misafir=1`);
+                  router.push(buildReserveHref());
                 }}
                 className="w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm font-semibold text-text hover:border-accent/30"
               >
@@ -347,7 +315,7 @@ export function VehicleDetailView({
                   setAuthPromptOpen(false);
                   router.push(`/giris-yap?next=${encodeURIComponent(buildReserveHref())}`);
                 }}
-                className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-white"
+                className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg"
               >
                 Giriş yaparak devam et
               </button>
@@ -365,191 +333,239 @@ export function VehicleDetailView({
           </div>
         </div>
       )}
-      {hasRangeSelected && (
-        <div
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-border-subtle bg-bg-deep/95 px-4 pt-3 backdrop-blur-md sm:hidden"
-          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
-        >
-          <AnimatedButton variant="primary" className="w-full" onClick={goReserve}>
-            Rezervasyona devam et
-          </AnimatedButton>
-        </div>
-      )}
+      <section className="border-b border-white/10 bg-navy-hero text-white">
+        <div className="mx-auto max-w-6xl px-3 pb-10 pt-5 sm:px-5 sm:pb-12 lg:px-8">
+          <nav className="flex flex-wrap items-center gap-2 text-[11px] font-medium tracking-wide text-white/50 sm:text-xs">
+            <Link href="/" className="transition-colors hover:text-white">
+              Ana sayfa
+            </Link>
+            <span className="text-white/25" aria-hidden>
+              /
+            </span>
+            <Link href="/araclar" className="transition-colors hover:text-white">
+              Araçlar
+            </Link>
+            <span className="text-white/25" aria-hidden>
+              /
+            </span>
+            <span className="line-clamp-1 font-semibold text-white/90">{vehicle.name}</span>
+          </nav>
 
-      <div className="mx-auto max-w-6xl px-3 sm:px-5 lg:px-8">
-        <nav className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted sm:text-xs">
-          <Link href="/" className="hover:text-text">
-            Ana sayfa
-          </Link>
-          <span aria-hidden>/</span>
-          <Link href="/araclar" className="hover:text-text">
-            Araçlar
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="line-clamp-1 text-text">{vehicle.name}</span>
-        </nav>
-
-        <div className="mt-4 space-y-5 lg:mt-6 lg:space-y-6">
-          <div className="grid gap-5 lg:grid-cols-2 lg:items-start lg:gap-6 xl:gap-8">
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
             <div id="arac-galeri" className="min-w-0 scroll-mt-28">
-              <button
-                type="button"
-                onClick={() => openLightbox(activeImage)}
-                className="group relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-border-subtle bg-bg-raised/50 text-left shadow-sm outline-none ring-accent/0 transition-[border-color,box-shadow,ring] focus-visible:ring-2 focus-visible:ring-accent/40"
-                aria-label="Görseli tam ekranda aç"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeImage}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute inset-0"
-                  >
-                    <Image
-                      src={mainGallerySrc}
-                      alt={vehicle.imageAlt}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                      sizes="(max-width:1024px) 100vw, 50vw"
-                      priority={activeImage === 0}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-                <span className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-white/20 bg-black/45 px-2 py-0.5 text-[9px] font-medium text-white/90 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 sm:text-[10px]">
-                  Tam ekran
-                </span>
-              </button>
-              {galleryImages.length > 1 && <div className="mt-2">{galleryThumbnails}</div>}
+              <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() => openLightbox(activeImage)}
+                  className="group relative aspect-[16/10] w-full overflow-hidden border-0 bg-black/40 text-left outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+                  aria-label="Görseli tam ekranda aç"
+                >
+                  <span className="pointer-events-none absolute left-3 top-3 z-[1] border border-sky-400/50 bg-sky-600/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
+                    {vehicle.category}
+                  </span>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeImage}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="absolute inset-0"
+                    >
+                      <Image
+                        src={mainGallerySrc}
+                        alt={vehicle.imageAlt}
+                        fill
+                        className="object-cover transition-transform duration-[480ms] ease-out group-hover:scale-[1.02]"
+                        sizes="(max-width:1024px) 100vw, 58vw"
+                        priority={activeImage === 0}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                  {galleryImages.length > 1 && (
+                    <span className="pointer-events-none absolute right-3 top-3 border border-white/30 bg-black/75 px-2.5 py-1 text-[10px] font-bold tabular-nums tracking-widest text-white">
+                      {activeImage + 1} / {galleryImages.length}
+                    </span>
+                  )}
+                  <span className="pointer-events-none absolute bottom-3 right-3 border border-white/35 bg-black/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    Tam ekran
+                  </span>
+                </button>
+                {galleryImages.length > 1 && (
+                  <div className="border-t border-white/10 bg-black/35 px-3 py-2.5">{galleryThumbnails}</div>
+                )}
+              </div>
             </div>
 
-            <div className="min-w-0 space-y-4 sm:space-y-5">
-              <Reveal>
-                <div className="mt-2.5 flex flex-col gap-2 sm:mt-3 sm:gap-3">
-                  <div className="min-w-0">
-                    <h1 className="font-display text-xl font-semibold tracking-tight text-text sm:text-2xl lg:text-[1.4rem] lg:leading-snug xl:text-[1.5rem]">
-                      {vehicle.name}
-                    </h1>
-                    <p className="mt-0.5 text-xs text-text-muted sm:text-sm">{vehicle.brand}</p>
+            <div className="flex min-w-0 flex-col gap-4 lg:pt-1">
+              <div className="flex flex-wrap gap-2">
+                {vehicle.badge ? (
+                  <span className="border border-white/25 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-steel">
+                    {vehicle.badge}
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.35rem] lg:leading-[1.12] xl:text-4xl">
+                {vehicle.name}
+              </h1>
+              <dl className="mt-3 flex max-w-md flex-wrap rounded-xl border border-white/[0.14] bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-1 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md sm:mt-4 sm:flex-nowrap sm:divide-x sm:divide-white/15">
+                {heroVehicleSpecs.map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex min-w-[33%] flex-1 flex-col items-center justify-center gap-0.5 px-2.5 py-3 text-center sm:min-w-0 sm:px-3 sm:py-3.5"
+                  >
+                    <dt className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                      {row.label}
+                    </dt>
+                    <dd className="text-[13px] font-semibold tabular-nums tracking-tight text-white/92 sm:text-sm">
+                      {row.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-5 sm:mt-6">
+                <p className="font-display text-3xl font-bold tabular-nums text-white sm:text-4xl">
+                  {formatPrice(vehicle.pricePerDay)}
+                  <span className="text-lg font-semibold text-white/80 sm:text-xl"> / günlük</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="group relative mt-3 inline-flex w-full max-w-md cursor-pointer overflow-hidden rounded-md border border-white/25 bg-white px-4 py-3.5 text-sm font-bold uppercase tracking-wide shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] transition-[border-color,box-shadow] hover:border-white/40 hover:shadow-[0_16px_44px_-14px_rgba(0,0,0,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 lg:w-auto lg:min-w-[17rem]"
+                onClick={() => goToReservationPage()}
+              >
+                <span
+                  className="absolute inset-0 origin-left scale-x-0 bg-navy-hero transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150 group-hover:scale-x-100"
+                  aria-hidden
+                />
+                <span className="relative z-[1] inline-flex items-center justify-center gap-2 text-navy-hero transition-colors duration-300 group-hover:text-white">
+                  <CalendarDaysIcon className="size-5 shrink-0 text-navy-hero transition-colors duration-300 group-hover:text-white" />
+                  Rezervasyon yap
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="relative z-[1] border-x border-border-subtle bg-bg-card px-3 pb-16 pt-9 shadow-[0_-16px_48px_-28px_rgba(11,30,59,0.12)] sm:px-5 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto min-w-0 max-w-3xl space-y-8 lg:space-y-9">
+              {vehicle.highlights.length > 0 ? (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Öne çıkanlar</p>
+                  <ul className="mt-3 flex flex-wrap gap-2" role="list">
+                    {vehicle.highlights.slice(0, 5).map((h) => (
+                      <li
+                        key={h}
+                        className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border-subtle bg-bg-raised/50 px-3 py-1.5 text-xs font-medium text-text dark:bg-bg-deep/40"
+                      >
+                        <CheckCircleSoftIcon className="size-3.5 shrink-0 text-accent" />
+                        <span className="min-w-0 leading-snug">{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <section id="arac-ozet" className="scroll-mt-28" aria-labelledby="arac-konum-baslik">
+                <h2
+                  id="arac-konum-baslik"
+                  className="text-lg font-bold tracking-tight text-navy-hero dark:text-white"
+                >
+                  Konum
+                </h2>
+                <div className="mt-4 flex gap-3 rounded-xl border border-border-subtle bg-bg-raised/50 p-4 shadow-sm dark:bg-bg-deep/40">
+                  <MapPinGarageIcon className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+                  <div className="min-w-0 space-y-2 text-sm font-medium leading-relaxed text-text">
+                    <p>{garageText}</p>
+                    {(vehicle.defaultPickupHandoverLocationId || vehicle.defaultReturnHandoverLocationId) && (
+                      <ul className="list-inside list-disc space-y-1 text-[13px] text-text-muted">
+                        {vehicle.defaultPickupHandoverLocationId ? (
+                          <li>
+                            Varsayılan alış:{" "}
+                            <span className="font-medium text-text">
+                              {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
+                            </span>
+                          </li>
+                        ) : null}
+                        {vehicle.defaultReturnHandoverLocationId ? (
+                          <li>
+                            Varsayılan teslim:{" "}
+                            <span className="font-medium text-text">
+                              {vehicle.defaultReturnHandoverName ?? "—"}
+                            </span>
+                          </li>
+                        ) : null}
+                      </ul>
+                    )}
                   </div>
                 </div>
-              </Reveal>
-
-              <section id="arac-ozet" className="scroll-mt-28 pt-0.5 sm:pt-1">
-                <h2 className="font-display text-sm font-semibold tracking-tight text-text sm:text-base">Araç Bilgileri</h2>
-                <div className="mt-1.5 grid grid-cols-3 gap-1">
-                  {specItems.map((s) => {
-                    const iconCls = "h-3 w-3 shrink-0 text-text-muted";
-                    const labelIcon =
-                      s.icon === "engine" ? (
-                        <EngineIcon className={iconCls} />
-                      ) : s.icon === "luggage" ? (
-                        <LuggageIcon className={iconCls} />
-                      ) : s.icon === "seat" ? (
-                        <SeatIcon className={iconCls} />
-                      ) : null;
-                    return (
-                      <div
-                        key={s.label}
-                        className="rounded border border-border-subtle bg-bg-card/50 px-1.5 py-1"
-                      >
-                        <p className="flex min-h-[0.875rem] items-center gap-0.5 text-[7px] font-medium uppercase leading-none tracking-wide text-text-muted sm:text-[8px]">
-                          {labelIcon}
-                          <span className="min-w-0 truncate">{s.label}</span>
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-medium leading-tight text-text sm:text-[11px]">{s.value}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-1.5 rounded border border-border-subtle bg-bg-card/50 px-2 py-1.5 sm:px-2.5 sm:py-2">
-                  <p className="text-[7px] font-medium uppercase leading-none tracking-wide text-text-muted sm:text-[8px]">
-                    Araç konumu
-                  </p>
-                  <p className="mt-0.5 text-[10px] font-medium leading-snug text-text sm:text-[11px]">
-                    {garageText}
-                  </p>
-                </div>
-                <div className="mt-2 rounded-md border border-border-subtle bg-bg-card/70 px-3 py-2 text-text-muted tabular-nums shadow-sm">
-                  <span className="block text-[10px] uppercase tracking-wide text-text-muted/75">Günlük fiyat</span>
-                  <span className="font-semibold text-text">{formatTry(vehicle.pricePerDay)}</span>
-                </div>
+                {vehicle.rentOptionDefinitions && vehicle.rentOptionDefinitions.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
+                    <h3 className="text-sm font-semibold text-text">Rezervasyonda seçilebilir ekler</h3>
+                    <ul className="mt-2 space-y-2 text-sm text-text-muted" role="list">
+                      {vehicle.rentOptionDefinitions
+                        .filter((o) => o.active !== false)
+                        .map((o) => (
+                          <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="font-medium text-text">{o.title}</span>
+                            <span className="tabular-nums text-accent">+{formatPrice(o.price)}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ) : null}
               </section>
 
-              <div id="arac-paket" className="scroll-mt-28 pt-1 sm:pt-2">
-                <h2 className="font-display text-base font-semibold text-text sm:text-lg">Paket</h2>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 sm:gap-3">
-                  <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 sm:p-3.5">
-                    <h3 className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300/90">
-                      Dahil
-                    </h3>
-                    <ul className="mt-1.5 space-y-0.5 text-[10px] leading-snug text-text-muted sm:mt-2 sm:space-y-1 sm:text-[12px]">
-                      {vehicle.included.map((x) => (
-                        <li key={x}>· {x}</li>
+              <div id="arac-paket" className="scroll-mt-28">
+                <h2 className="text-lg font-bold tracking-tight text-navy-hero dark:text-white">Paket özeti</h2>
+                <p className="mt-1 text-sm text-text-muted">Ayrıntılar için SSS bölümüne bakın.</p>
+                <div className="mt-4 grid gap-4 rounded-xl border border-border-subtle bg-bg-raised/30 p-4 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border-subtle dark:bg-bg-deep/30">
+                  <section className="sm:pr-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircleSoftIcon className="size-5 shrink-0 text-accent" />
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-text">Dahil</h3>
+                    </div>
+                    <ul className="mt-3 space-y-2" role="list">
+                      {vehicle.included.slice(0, 5).map((x) => (
+                        <li key={x} className="flex gap-2 text-sm font-medium leading-snug text-text">
+                          <span className="mt-2 size-1 shrink-0 rounded-full bg-accent" aria-hidden />
+                          <span>{x}</span>
+                        </li>
                       ))}
                     </ul>
+                    {vehicle.included.length > 5 ? (
+                      <p className="mt-2 text-xs text-text-muted">+{vehicle.included.length - 5} madde daha</p>
+                    ) : null}
                   </section>
-                  <section className="rounded-lg border border-white/10 bg-bg-raised/50 p-2.5 sm:p-3.5">
-                    <h3 className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                      Dahil değil
-                    </h3>
-                    <ul className="mt-1.5 space-y-0.5 text-[10px] leading-snug text-text-muted sm:mt-2 sm:space-y-1 sm:text-[12px]">
-                      {vehicle.notIncluded.map((x) => (
-                        <li key={x}>· {x}</li>
+                  <section className="sm:pl-4">
+                    <div className="flex items-center gap-2">
+                      <XCircleSoftIcon className="size-5 shrink-0 text-text-muted" />
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-text">Dahil değil</h3>
+                    </div>
+                    <ul className="mt-3 space-y-2" role="list">
+                      {vehicle.notIncluded.slice(0, 4).map((x) => (
+                        <li key={x} className="flex gap-2 text-sm font-medium leading-snug text-text-muted">
+                          <span className="mt-2 size-1 shrink-0 rounded-full bg-text-muted/50" aria-hidden />
+                          <span>{x}</span>
+                        </li>
                       ))}
                     </ul>
+                    {vehicle.notIncluded.length > 4 ? (
+                      <p className="mt-2 text-xs text-text-muted">+{vehicle.notIncluded.length - 4} madde daha</p>
+                    ) : null}
                   </section>
                 </div>
               </div>
+
             </div>
           </div>
 
-          <div className="w-full space-y-5 sm:space-y-6">
-            <div className="mx-auto grid w-full max-w-5xl gap-5 lg:grid-cols-[minmax(0,1fr)_min(100%,20rem)] lg:items-start lg:gap-6 xl:max-w-6xl xl:gap-8">
-              <div className="min-w-0 w-full max-w-md sm:max-w-lg lg:max-w-none">
-                {calendarBlock}
-              </div>
-              <div className="flex min-w-0 w-full max-w-md flex-col gap-4 sm:max-w-lg lg:max-w-none">
-                <VehicleRentalPriceDetails
-                  pricePerDay={vehicle.pricePerDay}
-                  nights={hasRangeSelected && nights != null ? nights : null}
-                />
-                {reserveError && (
-                  <div>
-                    <p className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-text">
-                      {reserveError}
-                    </p>
-                  </div>
-                )}
-                {!hasRangeSelected && (
-                  <p className="rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[12px] leading-snug text-text">
-                    Rezervasyona devam etmek için gün bilgisi seçiniz.
-                  </p>
-                )}
-                <div>
-                  <AnimatedButton
-                    variant="primary"
-                    className="w-full min-w-0"
-                    disabled={!hasRangeSelected}
-                    onClick={goReserve}
-                  >
-                    Rezervasyona devam et
-                  </AnimatedButton>
-                  {hasRangeSelected && (
-                    <p className="mt-1.5 text-[10px] leading-snug text-text-muted sm:text-[11px]">
-                      Lokasyon ve ekleri bir sonraki adımda düzenlersiniz.
-                    </p>
-                  )}
-                </div>
-                <VehicleRentalConditionsCard />
-                <ReservationCalendarSupportAside />
-              </div>
-            </div>
+          <div className="mt-14 border-t border-border-subtle pt-10">
             <VehicleRentalFaqPanel className="min-w-0" />
           </div>
         </div>
-      </div>
     </div>
   );
 }
