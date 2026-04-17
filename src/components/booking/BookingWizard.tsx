@@ -26,12 +26,14 @@ import {
   fetchHandoverLocationsFromRentApi,
   type CreateRentalRequestFormPayload,
 } from "@/lib/rentApi";
+import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
 import { fetchHasBffSession } from "@/lib/bff-access-token";
 import { getStoredAuthUser } from "@/lib/authSession";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { DayPickerPopover } from "@/components/ui/DayPickerPopover";
 import { RentIconBackButton, RentIconBackLink } from "@/components/ui/RentIconBack";
+import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
 import { RentSelect } from "@/components/ui/RentSelect";
 
 const steps = [
@@ -43,6 +45,8 @@ const steps = [
 
 /** Demo: ek ücretler € cinsinden; toplamda TRY ile birleştirmek için sabit kur. */
 const EXTRA_EUR_TO_TRY_DEMO = 35;
+/** Demo: farklı bırakış (örn. 35$) — alış/teslim ülkesi aynıyken uygulanan sabit TRY ek ücreti */
+const DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY = 1250;
 
 type ExtraServiceId = "baby_seat" | "extra_driver" | "green_insurance_me" | "green_insurance_balkan";
 
@@ -167,26 +171,75 @@ function saveReservationRequestSnapshot(snapshot: {
   }
 }
 
+type ExtraFeeLineItem = { key: string; label: string; amountTry: number };
+
+function ExtraFeesPricingSection({
+  formatPrice,
+  extraFeeTry,
+  lines,
+}: {
+  formatPrice: (amountTry: number) => string;
+  extraFeeTry: number;
+  lines: ExtraFeeLineItem[];
+}) {
+  if (extraFeeTry <= 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between gap-2 font-medium text-text">
+        <span>Ek hizmetler</span>
+        <span className="shrink-0 tabular-nums text-text">{formatPrice(extraFeeTry)}</span>
+      </div>
+      {lines.length > 0 ? (
+        <ul className="ml-1.5 space-y-0.5 border-l-2 border-border-subtle/60 pl-2.5 text-[12px] leading-snug text-text-muted">
+          {lines.map((row) => (
+            <li key={row.key} className="flex justify-between gap-2">
+              <span className="min-w-0">
+                <span className="text-text-muted/80" aria-hidden>
+                  -{" "}
+                </span>
+                {row.label}
+              </span>
+              <span className="shrink-0 tabular-nums">{formatPrice(row.amountTry)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function BookingRentalSummaryCard({
   vehicle,
   nights,
   pickup,
   ret,
   formatPrice,
-  rentalSub,
+  vehicleBaseSubtotalTry,
+  differentDropoffSurchargeTry,
+  differentDropoffSurchargeLabel,
   extraFeeTry,
+  extraFeeLineItems,
   total,
   selectedExtras,
+  differentDropoff,
+  pickupLocationLabel,
+  returnLocationLabel,
 }: {
   vehicle: FleetVehicle;
   nights: number | null;
   pickup: string;
   ret: string;
   formatPrice: (amountTry: number) => string;
-  rentalSub: number;
+  vehicleBaseSubtotalTry: number;
+  differentDropoffSurchargeTry: number;
+  differentDropoffSurchargeLabel: string | null;
   extraFeeTry: number;
+  extraFeeLineItems: ExtraFeeLineItem[];
   total: number;
   selectedExtras: ReadonlySet<ExtraServiceId>;
+  differentDropoff: boolean;
+  pickupLocationLabel: string;
+  returnLocationLabel: string;
 }) {
   return (
     <div className="rounded-xl border border-border-subtle bg-bg-card/80 p-4 backdrop-blur-md">
@@ -209,6 +262,16 @@ function BookingRentalSummaryCard({
             <p>
               <span className="font-semibold text-text">Teslim:</span> {formatTrDate(ret)}
             </p>
+            {differentDropoff ? (
+              <>
+                <p className="mt-2 border-t border-border-subtle/60 pt-2">
+                  <span className="font-semibold text-text">Alış yeri:</span> {pickupLocationLabel}
+                </p>
+                <p>
+                  <span className="font-semibold text-text">Teslim yeri:</span> {returnLocationLabel}
+                </p>
+              </>
+            ) : null}
           </div>
           <p className="mt-2 text-xs text-text-muted">
             Günlük {formatPrice(vehicle.pricePerDay)}{" "}
@@ -222,10 +285,13 @@ function BookingRentalSummaryCard({
         <p className="text-xs text-text-muted">— · günlük {formatPrice(vehicle.pricePerDay)}</p>
       )}
       <div className="mt-4 space-y-1 border-t border-border-subtle pt-4 text-sm">
-        <Row label="Araç" value={formatPrice(rentalSub)} />
-        {extraFeeTry > 0 && <Row label="Ek hizmetler" value={formatPrice(extraFeeTry)} />}
+        <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
+        {differentDropoffSurchargeTry > 0 && differentDropoffSurchargeLabel ? (
+          <Row label={differentDropoffSurchargeLabel} value={formatPrice(differentDropoffSurchargeTry)} />
+        ) : null}
+        <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
         <div className="flex justify-between border-t border-border-subtle pt-2 font-semibold text-text">
-          <span>Tahmini toplam</span>
+          <span>Toplam tutar</span>
           <span>{formatPrice(total)}</span>
         </div>
         {totalExtraEur(selectedExtras) > 0 && (
@@ -243,6 +309,12 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  /** `null`: ilk yükleme; rent API (handover) yalnızca `true` iken çağrılır. */
+  const [reservationAuthReady, setReservationAuthReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void fetchHasBffSession().then(setReservationAuthReady);
+  }, []);
 
   const patchQuery = (mutate: (q: URLSearchParams) => void) => {
     const q = new URLSearchParams(sp.toString());
@@ -271,6 +343,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       setApiReturnOptions([]);
       return;
     }
+    if (!reservationAuthReady) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -306,7 +379,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     return () => {
       cancelled = true;
     };
-  }, [fromApiVehicle]);
+  }, [fromApiVehicle, reservationAuthReady]);
 
   const handoverLabel = useCallback(
     (id: string) => {
@@ -355,6 +428,29 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     return pickupLocationSelectOptions;
   }, [fromApiVehicle, apiReturnOptions, pickupLocationSelectOptions]);
 
+  const canChooseDifferentReturn = useMemo(
+    () => returnLocationSelectOptions.length > 0 && returnLocationSelectOptions.some((o) => o.value !== locId),
+    [returnLocationSelectOptions, locId],
+  );
+  const differentDropoff = Boolean(locId && returnLocId && locId !== returnLocId);
+
+  const differentDropoffSurchargeTry =
+    differentDropoff && crossBorderFee > 0
+      ? crossBorderFee
+      : differentDropoff
+        ? DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY
+        : 0;
+
+  const differentDropoffSurchargeLabel =
+    differentDropoff && differentDropoffSurchargeTry > 0
+      ? crossBorderFee > 0
+        ? "Farklı bırakış (ülke farkı)"
+        : "Farklı bırakış (örn. 35$)"
+      : null;
+
+  const pickupSummaryLabel = pickupLocation?.label?.trim() || locId;
+  const returnSummaryLabel = returnLocation?.label?.trim() || returnLocId;
+
   const [step, setStep] = useState(1);
   /** Ulaşılan en ileri adım; geri gidildikten sonra üst sekmeden tekrar seçilebilmesi için. */
   const [maxStepReached, setMaxStepReached] = useState(1);
@@ -389,9 +485,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   const [licenseNo, setLicenseNo] = useState("");
   const [passportNo, setPassportNo] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [pickupMode, setPickupMode] = useState<"ofis" | "adres">("ofis");
-  const [address, setAddress] = useState("");
-  const [notes, setNotes] = useState("");
   const [licenseScan, setLicenseScan] = useState<File | null>(null);
   const [passportScan, setPassportScan] = useState<File | null>(null);
   const [terms, setTerms] = useState(false);
@@ -404,6 +497,24 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     if (!a || !b || b <= a) return false;
     return rentalNights(a, b) >= 1;
   });
+
+  const handleReservationDifferentDropoff = (next: boolean) => {
+    setCalendarRevealed(true);
+    if (!next) {
+      patchQuery((q) => {
+        q.set("lokasyonTeslim", locId);
+      });
+      return;
+    }
+    if (locId === returnLocId) {
+      const alt = returnLocationSelectOptions.find((o) => o.value !== locId)?.value;
+      if (alt) {
+        patchQuery((q) => {
+          q.set("lokasyonTeslim", alt);
+        });
+      }
+    }
+  };
 
   const isLgUp = useIsLgUp();
   const mobileSummaryMode = !isLgUp;
@@ -512,10 +623,10 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     }
   }, [step]);
 
-  const rentalSub =
-    nights != null
-      ? computeRentalSubtotal(vehicle.pricePerDay, nights) + crossBorderFee + abroadUsageFee
-      : 0;
+  const vehicleBaseSubtotalTry =
+    nights != null ? computeRentalSubtotal(vehicle.pricePerDay, nights) + abroadUsageFee : 0;
+
+  const rentalSub = vehicleBaseSubtotalTry + differentDropoffSurchargeTry;
 
   const apiOptionsFeeTry = useMemo(() => {
     const defs = vehicle.rentOptionDefinitions;
@@ -530,6 +641,33 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
 
   const extraFeeTry = totalExtraEur(selectedExtras) * EXTRA_EUR_TO_TRY_DEMO + apiOptionsFeeTry;
   const total = rentalSub + extraFeeTry;
+
+  const extraFeeLineItems = useMemo((): ExtraFeeLineItem[] => {
+    const lines: ExtraFeeLineItem[] = [];
+    for (const id of EXTRA_SERVICE_ORDER) {
+      if (selectedExtras.has(id)) {
+        lines.push({
+          key: `extra-${id}`,
+          label: extraServiceShortLabel(id),
+          amountTry: eurForExtraService(id) * EXTRA_EUR_TO_TRY_DEMO,
+        });
+      }
+    }
+    const defs = vehicle.rentOptionDefinitions;
+    if (defs?.length) {
+      for (const optId of selectedVehicleOptionIds) {
+        const d = defs.find((x) => x.id === optId && x.active !== false);
+        if (d) {
+          lines.push({
+            key: `veh-opt-${optId}`,
+            label: d.title,
+            amountTry: d.price,
+          });
+        }
+      }
+    }
+    return lines;
+  }, [selectedExtras, selectedVehicleOptionIds, vehicle.rentOptionDefinitions]);
 
   const apiVehicleOptionsSummary = useMemo(() => {
     const defs = vehicle.rentOptionDefinitions;
@@ -551,9 +689,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     if (!isPhoneTr(phone)) e.phone = "Geçerli bir Türkiye cep telefonu girin.";
     if (licenseNo.trim().length < 6) e.licenseNo = "Ehliyet numarası / seri bilgisi girin.";
     if (!birthDate) e.birthDate = "Doğum tarihi zorunludur.";
-    if (pickupMode === "adres" && address.trim().length < 10) {
-      e.address = "Adres teslim için adres detayı girin.";
-    }
     if (!licenseScan) e.licenseScan = "Ehliyet görseli yükleyin (net, okunaklı fotoğraf).";
     else if (!isLikelyImageFile(licenseScan)) {
       e.licenseScan = "Geçerli bir görsel seçin (JPEG, PNG, WebP; en fazla 8 MB).";
@@ -716,9 +851,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           ];
         }
 
-        const extraNote = buildExtraNoteBlock();
-        const combinedNote = [notes.trim(), extraNote].filter(Boolean).join("\n\n");
-
         const apiOpts =
           selectedVehicleOptionIds.size > 0
             ? [...selectedVehicleOptionIds].map((id) => ({ vehicleOptionDefinitionId: id }))
@@ -731,7 +863,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           pickupHandoverLocationId: uuidLikeRe.test(locId) ? locId : undefined,
           returnHandoverLocationId: uuidLikeRe.test(returnLocId) ? returnLocId : undefined,
           outsideCountryTravel: planVehicleAbroad,
-          note: combinedNote || undefined,
+          note: buildExtraNoteBlock().trim() || undefined,
           options: apiOpts,
           customer: {
             fullName: fullName.trim(),
@@ -786,6 +918,30 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       setStep((s) => s - 1);
     }
   };
+
+  if (reservationAuthReady === null) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6">
+        <p className="py-24 text-center text-sm text-text-muted">Oturum kontrol ediliyor…</p>
+      </div>
+    );
+  }
+
+  if (!reservationAuthReady) {
+    const nextHref = `${pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6">
+        <GuestReservationGate
+          variant="fullscreen"
+          nextLoginHref={nextHref}
+          onAuthenticated={(guestEmail) => {
+            setEmail(guestEmail);
+            void fetchHasBffSession().then(setReservationAuthReady);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (step === 5 && doneRef) {
     return (
@@ -871,79 +1027,63 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   <div>
                     <h2 className="text-xl font-semibold text-text">Tarih seçimi</h2>
                     <p className="mt-2 text-sm text-text-muted">
-                      Önce alış ve teslim noktanızı seçin; ardından takvimden müsait günleri işaretleyin. Tarihler
-                      adres çubuğundaki bağlantıya yazılır.
+                      Alış noktası arama veya araç sayfasından geldiği için burada değiştirilemez. İsterseniz aracı
+                      farklı bir yere bırakmayı işaretleyip teslim noktasını seçin; ardından takvimden müsait günleri
+                      işaretleyin. Tarihler adres çubuğundaki bağlantıya yazılır.
                     </p>
                   </div>
 
                   <div className="space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4 sm:p-5">
                     <h3 className="text-sm font-semibold text-text">Alış / teslim noktası</h3>
                     <label className="block text-[11px] font-medium text-text-muted">
-                      Alış yeri (ülke)
+                      Alış yeri (sabit)
                       <RentSelect
                         value={locId}
-                        onChange={(v) => {
-                          setCalendarRevealed(true);
-                          patchQuery((q) => {
-                            q.set("lokasyon", v);
-                            if (!q.get("lokasyonTeslim")) q.set("lokasyonTeslim", v);
-                          });
-                        }}
+                        onChange={() => {}}
+                        disabled
                         options={pickupLocationSelectOptions}
-                        ariaLabel="Alış yeri"
+                        ariaLabel="Alış yeri (değiştirilemez)"
                         className="mt-1.5"
                         leadingIcon={<LocationPinIcon className="size-3.5" />}
                         optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
                       />
                     </label>
-                    <label className="block text-[11px] font-medium text-text-muted">
-                      Teslim yeri (ülke)
-                      <RentSelect
-                        value={returnLocId}
-                        onChange={(v) => {
-                          setCalendarRevealed(true);
-                          patchQuery((q) => {
-                            q.set("lokasyonTeslim", v);
-                          });
-                        }}
-                        options={returnLocationSelectOptions}
-                        ariaLabel="Teslim yeri"
-                        className="mt-1.5"
-                        leadingIcon={<LocationPinIcon className="size-3.5" />}
-                        optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
-                      />
-                    </label>
+                    <DifferentDropoffToggle
+                      checked={differentDropoff}
+                      onChange={handleReservationDifferentDropoff}
+                      disabled={!canChooseDifferentReturn}
+                      className="mt-1"
+                      parenthetical={canChooseDifferentReturn ? "35$" : undefined}
+                    />
+                    {!canChooseDifferentReturn ? (
+                      <p className="text-[11px] leading-relaxed text-text-muted">
+                        Bu araç için yalnızca tek teslim noktası tanımlı; teslim yeri alış ile aynı kalır.
+                      </p>
+                    ) : null}
+                    {differentDropoff ? (
+                      <label className="block text-[11px] font-medium text-text-muted">
+                        Teslim yeri
+                        <RentSelect
+                          value={returnLocId}
+                          onChange={(v) => {
+                            setCalendarRevealed(true);
+                            patchQuery((q) => {
+                              q.set("lokasyonTeslim", v);
+                            });
+                          }}
+                          options={returnLocationSelectOptions}
+                          ariaLabel="Teslim yeri"
+                          className="mt-1.5"
+                          leadingIcon={<LocationPinIcon className="size-3.5" />}
+                          optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
+                        />
+                      </label>
+                    ) : null}
                     {crossBorderFee > 0 && (
                       <p className="text-[11px] leading-relaxed text-amber-200/90">
                         Farklı ülke teslimi: tahmini araç bedeline{" "}
                         <span className="font-medium text-text">{formatPrice(crossBorderFee)}</span>{" "}
                         eklenir (demo).
-                      </p>
-                    )}
-                    <label className="flex cursor-pointer gap-2.5 text-[11px] leading-snug text-text-muted">
-                      <input
-                        type="checkbox"
-                        checked={planVehicleAbroad}
-                        onChange={(e) => {
-                          patchQuery((q) => {
-                            if (e.target.checked) q.set("ulkeDisi", "1");
-                            else q.delete("ulkeDisi");
-                          });
-                        }}
-                        className="mt-0.5 size-4 shrink-0 accent-accent"
-                      />
-                      <span>
-                        Aracı yurt dışına çıkarmayı planlıyorum; ek{" "}
-                        <span className="font-medium text-text">
-                          {formatPrice(vehicleAbroadUsageSurcharge(true))}
-                        </span>{" "}
-                        ücret uygulanır (demo).
-                      </span>
-                    </label>
-                    {nights != null && (
-                      <p className="border-t border-border-subtle pt-3 text-sm text-text-muted">
-                        <span className="text-text">Tahmini araç bedeli</span> ({nights} gün):{" "}
-                        <span className="font-semibold text-accent">{formatPrice(rentalSub)}</span>
                       </p>
                     )}
                     {!calendarRevealed && (
@@ -956,7 +1096,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           Takvimi göster
                         </button>
                         <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-                          Alış veya teslim yerini değiştirdiğinizde takvim otomatik açılır.
+                          Farklı teslim noktasını değiştirdiğinizde takvim otomatik açılır.
                         </p>
                       </div>
                     )}
@@ -992,6 +1132,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           returnDate={returnForCalendar}
                           syncToken={sp.toString()}
                           footerMode="inline"
+                          fullWidth
+                          selectionOnly
+                          showResetButton={false}
                           onCommit={(p, r) => {
                             patchQuery((q) => {
                               q.set("alis", p);
@@ -1006,7 +1149,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                             });
                           }}
                           title="Takvim"
-                          subtitle="Önce alış gününe, sonra teslim gününe tıklayın."
                         />
                       </motion.div>
                     )}
@@ -1031,12 +1173,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   setLicenseScan={setLicenseScan}
                   passportScan={passportScan}
                   setPassportScan={setPassportScan}
-                  pickupMode={pickupMode}
-                  setPickupMode={setPickupMode}
-                  address={address}
-                  setAddress={setAddress}
-                  notes={notes}
-                  setNotes={setNotes}
                   errors={errors}
                 />
               )}
@@ -1074,10 +1210,14 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   ret={ret}
                   pickupLocationLabel={pickupLocation?.label}
                   returnLocationLabel={returnLocation?.label}
+                  differentDropoff={differentDropoff}
                   crossBorderFee={crossBorderFee}
                   abroadUsageFee={abroadUsageFee}
-                  rentalSub={rentalSub}
+                  vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
+                  differentDropoffSurchargeTry={differentDropoffSurchargeTry}
+                  differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
                   extraFeeTry={extraFeeTry}
+                  extraFeeLineItems={extraFeeLineItems}
                   extraSummary={combinedExtrasSummary}
                   total={total}
                   fullName={fullName}
@@ -1092,8 +1232,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   coDriverPassportScanName={
                     selectedExtras.has("extra_driver") ? coDriverPassportScan?.name : undefined
                   }
-                  pickupMode={pickupMode}
-                  address={address}
                   formatPrice={formatPrice}
                   terms={terms}
                   setTerms={(v) => {
@@ -1113,13 +1251,13 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
             </motion.div>
           </AnimatePresence>
 
-          <div className="mt-10 flex flex-wrap gap-3">
+          <div className="mt-10 flex w-full min-w-0 flex-wrap items-center gap-3">
             {step > 1 && <RentIconBackButton onClick={goBack} aria-label="Geri" />}
             {!(mobileSummaryMode && step === 4) && (
               <motion.button
                 type="button"
                 onClick={() => void goNext()}
-                className="rounded-md bg-accent px-6 py-2.5 text-[13px] font-semibold text-accent-fg shadow-sm"
+                className="ml-auto rounded-md bg-accent px-6 py-2.5 text-[13px] font-semibold text-accent-fg shadow-sm"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
@@ -1141,10 +1279,16 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
               pickup={pickup}
               ret={ret}
               formatPrice={formatPrice}
-              rentalSub={rentalSub}
+              vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
+              differentDropoffSurchargeTry={differentDropoffSurchargeTry}
+              differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
               extraFeeTry={extraFeeTry}
+              extraFeeLineItems={extraFeeLineItems}
               total={total}
               selectedExtras={selectedExtras}
+              differentDropoff={differentDropoff}
+              pickupLocationLabel={pickupSummaryLabel}
+              returnLocationLabel={returnSummaryLabel}
             />
           </motion.div>
         </aside>
@@ -1242,10 +1386,16 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                       pickup={pickup}
                       ret={ret}
                       formatPrice={formatPrice}
-                      rentalSub={rentalSub}
+                      vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
+                      differentDropoffSurchargeTry={differentDropoffSurchargeTry}
+                      differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
                       extraFeeTry={extraFeeTry}
+                      extraFeeLineItems={extraFeeLineItems}
                       total={total}
                       selectedExtras={selectedExtras}
+                      differentDropoff={differentDropoff}
+                      pickupLocationLabel={pickupSummaryLabel}
+                      returnLocationLabel={returnSummaryLabel}
                     />
                     {step === 4 && (
                       <div className="mt-4 space-y-4 border-t border-border-subtle pt-4">
@@ -1428,6 +1578,7 @@ function StepExtras({
                 minDate="1940-01-01"
                 maxDate={todayIso()}
                 onChange={setCoDriverBirthDate}
+                pickMode="yearMonthDay"
                 compact
                 className="w-full"
               />
@@ -1648,12 +1799,6 @@ function StepContact({
   setLicenseScan,
   passportScan,
   setPassportScan,
-  pickupMode,
-  setPickupMode,
-  address,
-  setAddress,
-  notes,
-  setNotes,
   errors,
 }: {
   fullName: string;
@@ -1672,12 +1817,6 @@ function StepContact({
   setLicenseScan: (v: File | null) => void;
   passportScan: File | null;
   setPassportScan: (v: File | null) => void;
-  pickupMode: "ofis" | "adres";
-  setPickupMode: (v: "ofis" | "adres") => void;
-  address: string;
-  setAddress: (v: string) => void;
-  notes: string;
-  setNotes: (v: string) => void;
   errors: Record<string, string>;
 }) {
   const input =
@@ -1689,7 +1828,7 @@ function StepContact({
   const passportCameraRef = useRef<HTMLInputElement>(null);
   return (
     <div>
-      <h2 className="text-xl font-semibold text-text">Sürücü & teslimat</h2>
+      <h2 className="text-xl font-semibold text-text">Sürücü bilgileri</h2>
       <p className="mt-2 text-sm text-text-muted">
         Bilgileriniz yalnızca sözleşme ve kimlik doğrulama için kullanılır.
       </p>
@@ -1723,6 +1862,7 @@ function StepContact({
             minDate="1940-01-01"
             maxDate={todayIso()}
             onChange={setBirthDate}
+            pickMode="yearMonthDay"
             compact
             className="w-full"
           />
@@ -1796,50 +1936,6 @@ function StepContact({
           )}
         </Field>
       </div>
-
-      <h3 className="mt-10 text-sm font-semibold uppercase tracking-wider text-accent">
-        Teslimat tercihi
-      </h3>
-      <div className="mt-3 flex flex-wrap gap-3">
-        {(
-          [
-            ["ofis", "Ofiste teslim"],
-            ["adres", "Adrese teslim"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setPickupMode(id)}
-            className={`rounded-full border px-4 py-2 text-sm ${
-              pickupMode === id
-                ? "border-accent bg-accent/15 text-accent"
-                : "border-border-subtle text-text-muted hover:text-text"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {pickupMode === "adres" && (
-        <Field label="Açık adres" error={errors.address} className="mt-4">
-          <textarea
-            className={`${input} min-h-[100px] resize-y`}
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Mahalle, sokak, bina no, daire…"
-          />
-        </Field>
-      )}
-
-      <Field label="Notlar (isteğe bağlı)" className="mt-6">
-        <textarea
-          className={`${input} min-h-[80px]`}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Örn. çocuk koltuğu montaj yönü, uçuş kodu…"
-        />
-      </Field>
     </div>
   );
 }
@@ -1871,10 +1967,14 @@ function StepConfirm({
   ret,
   pickupLocationLabel,
   returnLocationLabel,
+  differentDropoff,
   crossBorderFee,
   abroadUsageFee,
-  rentalSub,
+  vehicleBaseSubtotalTry,
+  differentDropoffSurchargeTry,
+  differentDropoffSurchargeLabel,
   extraFeeTry,
+  extraFeeLineItems,
   extraSummary,
   total,
   fullName,
@@ -1885,8 +1985,6 @@ function StepConfirm({
   coDriverFullName,
   coDriverLicenseScanName,
   coDriverPassportScanName,
-  pickupMode,
-  address,
   formatPrice,
   terms,
   setTerms,
@@ -1899,10 +1997,14 @@ function StepConfirm({
   ret: string;
   pickupLocationLabel?: string;
   returnLocationLabel?: string;
+  differentDropoff: boolean;
   crossBorderFee: number;
   abroadUsageFee: number;
-  rentalSub: number;
+  vehicleBaseSubtotalTry: number;
+  differentDropoffSurchargeTry: number;
+  differentDropoffSurchargeLabel: string | null;
   extraFeeTry: number;
+  extraFeeLineItems: ExtraFeeLineItem[];
   extraSummary: string | null;
   total: number;
   fullName: string;
@@ -1913,8 +2015,6 @@ function StepConfirm({
   coDriverFullName?: string;
   coDriverLicenseScanName?: string;
   coDriverPassportScanName?: string;
-  pickupMode: "ofis" | "adres";
-  address: string;
   formatPrice: (amountTry: number) => string;
   terms: boolean;
   setTerms: (v: boolean) => void;
@@ -1927,7 +2027,7 @@ function StepConfirm({
       <h2 className="text-xl font-semibold text-text">Son kontrol</h2>
       {omitPricingAndTerms && (
         <p className="mt-2 text-xs leading-relaxed text-text-muted">
-          Tahmini toplam ve kiralama şartlarını onaylamak için ekranın altındaki özeti açın; onay aşamasında panel
+          Toplam tutar ve kiralama şartlarını onaylamak için ekranın altındaki özeti açın; onay aşamasında panel
           otomatik açılır.
         </p>
       )}
@@ -1969,7 +2069,7 @@ function StepConfirm({
             <span className="text-text">Alış yeri:</span> {pickupLocationLabel}
           </p>
         )}
-        {returnLocationLabel && (
+        {differentDropoff && returnLocationLabel && (
           <p>
             <span className="text-text">Teslim yeri:</span> {returnLocationLabel}
           </p>
@@ -1984,10 +2084,6 @@ function StepConfirm({
             Yurt dışı araç kullanımı ek ücreti: {formatPrice(abroadUsageFee)}
           </p>
         )}
-        <p>
-          <span className="text-text">Teslimat:</span>{" "}
-          {pickupMode === "ofis" ? "Ofis teslimi" : `Adrese teslim — ${address}`}
-        </p>
         {extraSummary && (
           <p>
             <span className="text-text">Ek hizmetler:</span> {extraSummary}
@@ -1995,8 +2091,11 @@ function StepConfirm({
         )}
         {!omitPricingAndTerms && (
           <div className="border-t border-border-subtle pt-3">
-            <Row label="Araç" value={formatPrice(rentalSub)} />
-            {extraFeeTry > 0 && <Row label="Ek hizmetler" value={formatPrice(extraFeeTry)} />}
+            <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
+            {differentDropoffSurchargeTry > 0 && differentDropoffSurchargeLabel ? (
+              <Row label={differentDropoffSurchargeLabel} value={formatPrice(differentDropoffSurchargeTry)} />
+            ) : null}
+            <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
             <div className="mt-2 flex justify-between font-semibold text-text">
               <span>Toplam</span>
               <span>{formatPrice(total)}</span>

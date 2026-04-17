@@ -28,9 +28,11 @@ export default function RootLayout({
   return (
     <html lang="tr" suppressHydrationWarning className={`${dmSans.variable} h-full min-h-dvh scroll-smooth antialiased`}>
       <body className="font-sans min-h-dvh">
-        <Script id="rent-theme-init" strategy="beforeInteractive">
-          {themeInit}
-        </Script>
+        <Script
+          id="rent-theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeInit }}
+        />
         <ThemeProvider>
           <LocaleProvider>
             {children}

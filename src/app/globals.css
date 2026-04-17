@@ -134,6 +134,30 @@ html[data-theme="light"] .theme-canvas {
   background: var(--bg-deep);
 }
 
+/** Sayfa gövdesi: hafif kurumsal “aura” (sabit, içerik üstte kayar). */
+.theme-canvas-aura .aura-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 52% 42% at 14% 18%, color-mix(in oklab, var(--accent) 16%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 48% 40% at 88% 12%, color-mix(in oklab, var(--steel) 14%, transparent) 0%, transparent 56%),
+    radial-gradient(ellipse 72% 48% at 50% 108%, color-mix(in oklab, var(--accent) 9%, transparent) 0%, transparent 52%),
+    radial-gradient(ellipse 40% 36% at 72% 72%, color-mix(in oklab, var(--steel) 10%, transparent) 0%, transparent 55%);
+  opacity: 0.95;
+}
+
+html[data-theme="light"] .theme-canvas-aura .aura-layer {
+  background:
+    radial-gradient(ellipse 52% 42% at 12% 16%, color-mix(in oklab, var(--accent) 12%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 46% 38% at 90% 20%, color-mix(in oklab, var(--steel) 10%, transparent) 0%, transparent 56%),
+    radial-gradient(ellipse 78% 50% at 48% 102%, color-mix(in oklab, var(--accent) 7%, transparent) 0%, transparent 50%),
+    radial-gradient(ellipse 38% 34% at 68% 68%, color-mix(in oklab, var(--navy-hero) 8%, transparent) 0%, transparent 54%);
+  opacity: 1;
+}
+
 .noise::after {
   content: "";
   pointer-events: none;

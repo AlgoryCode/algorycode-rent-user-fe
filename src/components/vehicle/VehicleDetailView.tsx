@@ -14,7 +14,8 @@ import { addDays, parseIsoDate, rentalNights, todayIso, toIsoDate } from "@/lib/
 import { CalendarDaysIcon } from "@/components/ui/Icons";
 import { CheckCircleSoftIcon, MapPinGarageIcon, XCircleSoftIcon } from "@/components/ui/VehicleSpecIcons";
 import { VehicleRentalFaqPanel } from "@/components/vehicle/VehicleRentalFaqPanel";
-import { fetchHasBffSession } from "@/lib/bff-access-token";
+import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
+import { clearBffBearerCache, fetchHasBffSession } from "@/lib/bff-access-token";
 
 const defaultGarageCopy =
   "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
@@ -116,6 +117,7 @@ export function VehicleDetailView({
 
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
   const [bffSession, setBffSession] = useState(false);
+  const [guestSubflow, setGuestSubflow] = useState(false);
 
   useEffect(() => {
     void fetchHasBffSession().then(setBffSession);
@@ -158,6 +160,7 @@ export function VehicleDetailView({
       router.push(buildReserveHref());
       return;
     }
+    setGuestSubflow(false);
     setAuthPromptOpen(true);
   }, [bffSession, buildReserveHref, router]);
 
@@ -291,45 +294,65 @@ export function VehicleDetailView({
             type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             aria-label="Kapat"
-            onClick={() => setAuthPromptOpen(false)}
+            onClick={() => {
+              setAuthPromptOpen(false);
+              setGuestSubflow(false);
+            }}
           />
           <div className="relative z-[651] w-full max-w-md rounded-sm border border-border-subtle bg-bg-card p-4 shadow-xl">
-            <h3 className="text-base font-semibold text-text">Rezervasyona nasıl devam etmek istersiniz?</h3>
-            <p className="mt-1.5 text-sm text-text-muted">
-              Üye olmadan devam edebilir ya da giriş yaparak bilgilerinizi otomatik doldurabilirsiniz.
-            </p>
-            <div className="mt-4 space-y-2">
-              <button
-                type="button"
-                onClick={() => {
+            {!guestSubflow ? (
+              <>
+                <h3 className="text-base font-semibold text-text">Rezervasyona nasıl devam etmek istersiniz?</h3>
+                <p className="mt-1.5 text-sm text-text-muted">
+                  Misafir olarak e-posta ile devam edebilir veya giriş yaparak bilgilerinizi otomatik doldurabilirsiniz.
+                </p>
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setGuestSubflow(true)}
+                    className="w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm font-semibold text-text hover:border-accent/30"
+                  >
+                    Misafir olarak devam et
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthPromptOpen(false);
+                      setGuestSubflow(false);
+                      router.push(`/giris-yap?next=${encodeURIComponent(buildReserveHref())}`);
+                    }}
+                    className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg"
+                  >
+                    Giriş yaparak devam et
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthPromptOpen(false);
+                      setGuestSubflow(false);
+                      router.push(`/uye-ol?next=${encodeURIComponent(buildReserveHref())}`);
+                    }}
+                    className="w-full rounded-lg border border-border-subtle px-3 py-2.5 text-sm text-text-muted hover:text-text"
+                  >
+                    Üye ol
+                  </button>
+                </div>
+              </>
+            ) : (
+              <GuestReservationGate
+                variant="embedded"
+                title="Misafir olarak devam"
+                nextLoginHref={buildReserveHref()}
+                onCancelEmbedded={() => setGuestSubflow(false)}
+                onAuthenticated={() => {
+                  clearBffBearerCache();
                   setAuthPromptOpen(false);
+                  setGuestSubflow(false);
+                  void fetchHasBffSession().then(setBffSession);
                   router.push(buildReserveHref());
                 }}
-                className="w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm font-semibold text-text hover:border-accent/30"
-              >
-                Üye olmadan devam et
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthPromptOpen(false);
-                  router.push(`/giris-yap?next=${encodeURIComponent(buildReserveHref())}`);
-                }}
-                className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg"
-              >
-                Giriş yaparak devam et
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthPromptOpen(false);
-                  router.push(`/uye-ol?next=${encodeURIComponent(buildReserveHref())}`);
-                }}
-                className="w-full rounded-lg border border-border-subtle px-3 py-2.5 text-sm text-text-muted hover:text-text"
-              >
-                Üye ol
-              </button>
-            </div>
+              />
+            )}
           </div>
         </div>
       )}
@@ -408,16 +431,16 @@ export function VehicleDetailView({
               <h1 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.35rem] lg:leading-[1.12] xl:text-4xl">
                 {vehicle.name}
               </h1>
-              <dl className="mt-3 flex max-w-md flex-wrap rounded-xl border border-white/[0.14] bg-gradient-to-b from-white/[0.09] to-white/[0.03] px-1 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md sm:mt-4 sm:flex-nowrap sm:divide-x sm:divide-white/15">
+              <dl className="mt-3 flex w-full max-w-md flex-col divide-y divide-white/15 overflow-hidden rounded-xl border border-white/[0.14] bg-gradient-to-b from-white/[0.09] to-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md sm:mt-4 sm:flex-row sm:divide-x sm:divide-y-0 sm:divide-white/15 sm:px-1 sm:py-1">
                 {heroVehicleSpecs.map((row) => (
                   <div
                     key={row.label}
-                    className="flex min-w-[33%] flex-1 flex-col items-center justify-center gap-0.5 px-2.5 py-3 text-center sm:min-w-0 sm:px-3 sm:py-3.5"
+                    className="flex flex-row items-center justify-between gap-3 px-3 py-2.5 sm:flex-1 sm:flex-col sm:justify-center sm:gap-0.5 sm:px-3 sm:py-3.5 sm:text-center"
                   >
-                    <dt className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                    <dt className="shrink-0 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/45">
                       {row.label}
                     </dt>
-                    <dd className="text-[13px] font-semibold tabular-nums tracking-tight text-white/92 sm:text-sm">
+                    <dd className="min-w-0 text-right text-[13px] font-semibold tabular-nums tracking-tight text-white/92 sm:text-sm sm:text-center">
                       {row.value}
                     </dd>
                   </div>

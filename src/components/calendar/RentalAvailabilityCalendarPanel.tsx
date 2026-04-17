@@ -61,6 +61,15 @@ export type RentalAvailabilityCalendarPanelProps = {
   onInlineReset?: () => void;
   /** Dış çerçeve yok; üst bileşen tek kutu içinde birleşik kenar için (ör. rezervasyon modalı). */
   unframed?: boolean;
+  /** `lg:max-w-sm` vb. sınır yok; sarmalayıcı genişliğine yayılır */
+  fullWidth?: boolean;
+  /**
+   * Alt başlık / filo notu ve alış–teslim–gün özeti yok; yalnızca ay başlığı, doluluk şeridi ve gün ızgarası.
+   * (Alış/Teslim hücre etiketleri durur.)
+   */
+  selectionOnly?: boolean;
+  /** Varsayılan true; false iken üstteki “Sıfırla” gizlenir */
+  showResetButton?: boolean;
 };
 
 export function RentalAvailabilityCalendarPanel({
@@ -80,6 +89,9 @@ export function RentalAvailabilityCalendarPanel({
   embeddedWide = false,
   onInlineReset,
   unframed = false,
+  fullWidth = false,
+  selectionOnly = false,
+  showResetButton = true,
 }: RentalAvailabilityCalendarPanelProps) {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth());
@@ -246,11 +258,13 @@ export function RentalAvailabilityCalendarPanel({
   const wideEmbedded = Boolean(embedded && embeddedWide);
   const tight = embedded && !wideEmbedded;
 
-  const rootLayoutClass = wideEmbedded
-    ? "min-w-0 w-full"
-    : tight
-      ? "lg:max-w-[18rem] lg:rounded-xl lg:shadow-sm"
-      : "lg:max-w-sm";
+  const rootLayoutClass = fullWidth
+    ? "min-w-0 w-full max-w-full"
+    : wideEmbedded
+      ? "min-w-0 w-full"
+      : tight
+        ? "lg:max-w-[18rem] lg:rounded-xl lg:shadow-sm"
+        : "lg:max-w-sm";
 
   const outerFrame = unframed
     ? "rounded-none border-0 shadow-none ring-0"
@@ -267,29 +281,35 @@ export function RentalAvailabilityCalendarPanel({
           {showPanelTitle !== false && (
             <h2
               id={headingId}
-              className={`font-display text-base font-semibold text-text sm:text-lg ${tight ? "lg:text-sm" : "lg:text-[15px]"}`}
+              className={`min-w-0 flex-1 font-display text-base font-semibold text-text sm:text-lg ${tight ? "lg:text-sm" : "lg:text-[15px]"}`}
             >
               {headTitle}
             </h2>
           )}
-          <button
-            type="button"
-            onClick={clearSelection}
-            className="rounded-md border border-border-subtle bg-bg-card/40 px-2 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
-          >
-            Sıfırla
-          </button>
+          {showResetButton ? (
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="shrink-0 rounded-md border border-border-subtle bg-bg-card/40 px-2 py-0.5 text-[10px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
+            >
+              Sıfırla
+            </button>
+          ) : null}
         </div>
-        <p
-          className={`mt-1 text-[11px] leading-relaxed text-text-muted sm:text-xs lg:text-[11px] lg:leading-snug ${tight ? "lg:line-clamp-2" : ""}`}
-        >
-          {headSubtitle}
-        </p>
-        {!vehicleId && (
-          <p className="mt-2 text-[10px] text-text-muted sm:text-[11px] lg:mt-1.5 lg:text-[10px]">
-            Tüm filo için birleşik doluluk gösterimi (demo).
-          </p>
-        )}
+        {!selectionOnly ? (
+          <>
+            <p
+              className={`mt-1 text-[11px] leading-relaxed text-text-muted sm:text-xs lg:text-[11px] lg:leading-snug ${tight ? "lg:line-clamp-2" : ""}`}
+            >
+              {headSubtitle}
+            </p>
+            {!vehicleId && (
+              <p className="mt-2 text-[10px] text-text-muted sm:text-[11px] lg:mt-1.5 lg:text-[10px]">
+                Tüm filo için birleşik doluluk gösterimi (demo).
+              </p>
+            )}
+          </>
+        ) : null}
       </div>
 
       <div
@@ -390,46 +410,48 @@ export function RentalAvailabilityCalendarPanel({
           </motion.div>
         </AnimatePresence>
 
-        <motion.div
-          key={`${a}-${b}-summary`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={fadeQuick}
-          className={`mt-2 rounded-md border border-border-subtle/70 bg-transparent px-2.5 py-2 text-[11px] text-text-muted lg:mt-2 ${tight ? "lg:px-2 lg:py-1.5 lg:text-[10px]" : "lg:text-[10px]"}`}
-        >
-          <p>
-            <span className="text-text">Alış:</span>{" "}
-            {parseIsoDate(a)?.toLocaleDateString("tr-TR", {
-              weekday: "short",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            }) ?? "—"}
-          </p>
-          <p className="mt-1">
-            <span className="text-text">Teslim:</span>{" "}
-            {parseIsoDate(b)?.toLocaleDateString("tr-TR", {
-              weekday: "short",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            }) ?? "—"}
-          </p>
-          {(() => {
-            const da = parseIsoDate(a);
-            const db = parseIsoDate(b);
-            if (!da || !db || db < da) return null;
-            const n = rentalNights(da, db);
-            return (
-              <p className="mt-1.5 inline-flex rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-medium text-accent">
-                {n} gün kiralama
-              </p>
-            );
-          })()}
-          {phase === "pickEnd" && (
-            <p className="mt-1 text-[11px] text-accent">Teslim gününü seçin (en az 1 gün sonrası).</p>
-          )}
-        </motion.div>
+        {!selectionOnly ? (
+          <motion.div
+            key={`${a}-${b}-summary`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={fadeQuick}
+            className={`mt-2 rounded-md border border-border-subtle/70 bg-transparent px-2.5 py-2 text-[11px] text-text-muted lg:mt-2 ${tight ? "lg:px-2 lg:py-1.5 lg:text-[10px]" : "lg:text-[10px]"}`}
+          >
+            <p>
+              <span className="text-text">Alış:</span>{" "}
+              {parseIsoDate(a)?.toLocaleDateString("tr-TR", {
+                weekday: "short",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              }) ?? "—"}
+            </p>
+            <p className="mt-1">
+              <span className="text-text">Teslim:</span>{" "}
+              {parseIsoDate(b)?.toLocaleDateString("tr-TR", {
+                weekday: "short",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              }) ?? "—"}
+            </p>
+            {(() => {
+              const da = parseIsoDate(a);
+              const db = parseIsoDate(b);
+              if (!da || !db || db < da) return null;
+              const n = rentalNights(da, db);
+              return (
+                <p className="mt-1.5 inline-flex rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 font-medium text-accent">
+                  {n} gün kiralama
+                </p>
+              );
+            })()}
+            {phase === "pickEnd" && (
+              <p className="mt-1 text-[11px] text-accent">Teslim gününü seçin (en az 1 gün sonrası).</p>
+            )}
+          </motion.div>
+        ) : null}
 
         <AnimatePresence>
           {error ? (

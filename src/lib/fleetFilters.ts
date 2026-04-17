@@ -162,7 +162,7 @@ export function buildAraclarQueryString(
   f: FleetFilterState,
 ): string {
   const extras: Record<string, string | undefined> = {};
-  for (const k of ["alis", "teslim", "lokasyon", "arac"] as const) {
+  for (const k of ["alis", "teslim", "lokasyon", "lokasyonTeslim", "arac"] as const) {
     const v = sp.get(k);
     if (v) extras[k] = v;
   }
