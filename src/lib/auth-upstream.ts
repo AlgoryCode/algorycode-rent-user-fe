@@ -19,12 +19,6 @@ export function getAuthUpstreamEmailCheckPath(): string {
   return p.startsWith("/") ? p : `/${p}`;
 }
 
-/** AuthService misafir oturumu path’i. */
-export function getAuthUpstreamGuestSessionPath(): string {
-  const p = process.env.AUTH_UPSTREAM_GUEST_SESSION_PATH?.trim() || "/guest/access-token";
-  return p.startsWith("/") ? p : `/${p}`;
-}
-
 /** `GET` veya `POST` (varsayılan POST). GET ise sorgu `?email=` */
 export function getAuthUpstreamEmailCheckMethod(): "GET" | "POST" {
   const m = process.env.AUTH_UPSTREAM_EMAIL_CHECK_METHOD?.trim().toUpperCase();

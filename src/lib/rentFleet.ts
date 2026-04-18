@@ -1,5 +1,6 @@
-import { fleet, type FleetVehicle } from "@/data/fleet";
+import { fleet, type FleetVehicle, type VehicleHandoverBookingOption } from "@/data/fleet";
 import { getFirstLocationByCountryCode } from "@/data/locations";
+import { getRentApiRoot } from "@/lib/api-base";
 import { fetchVehiclesFromRentApi } from "@/lib/rentApi";
 
 type RentVehicleDto = {
@@ -21,6 +22,12 @@ type RentVehicleDto = {
   cityName?: unknown;
   defaultPickupHandoverLocation?: unknown;
   defaultReturnHandoverLocation?: unknown;
+  /** Tek alış handover (dashboard). */
+  pickupHandoverLocation?: unknown;
+  pickupHandover?: unknown;
+  /** Bu araca atanmış teslim noktaları (çoklu). */
+  returnHandoverLocations?: unknown;
+  assignedReturnHandoverLocations?: unknown;
   optionDefinitions?: unknown;
 };
 
@@ -43,6 +50,38 @@ function handoverName(ref: unknown): string | undefined {
 function asNumber(v: unknown, fallback: number): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function parseSurchargeEur(o: Record<string, unknown>): number | undefined {
+  const sur = o.surchargeEur;
+  const surNum =
+    typeof sur === "number" && Number.isFinite(sur)
+      ? sur
+      : typeof sur === "string"
+        ? Number(sur)
+        : NaN;
+  if (typeof surNum !== "number" || !Number.isFinite(surNum) || surNum < 0) return undefined;
+  return surNum;
+}
+
+function parseVehicleHandoverBookingOption(row: unknown): VehicleHandoverBookingOption | null {
+  if (row == null || typeof row !== "object") return null;
+  const o = row as Record<string, unknown>;
+  const id = asString(o.id).trim();
+  if (!id) return null;
+  const name = asString(o.name).trim() || id;
+  const surchargeEur = parseSurchargeEur(o);
+  return surchargeEur != null ? { id, name, surchargeEur } : { id, name };
+}
+
+function parseReturnHandoversList(raw: unknown): VehicleHandoverBookingOption[] {
+  if (!Array.isArray(raw)) return [];
+  const out: VehicleHandoverBookingOption[] = [];
+  for (const row of raw) {
+    const opt = parseVehicleHandoverBookingOption(row);
+    if (opt) out.push(opt);
+  }
+  return out;
 }
 
 function pickImage(images: unknown): string {
@@ -78,6 +117,22 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
   const defaultReturnHandoverLocationId = handoverId(raw.defaultReturnHandoverLocation);
   const defaultPickupHandoverName = handoverName(raw.defaultPickupHandoverLocation);
   const defaultReturnHandoverName = handoverName(raw.defaultReturnHandoverLocation);
+
+  const returnHandoversForBooking = parseReturnHandoversList(
+    raw.returnHandoverLocations ?? raw.assignedReturnHandoverLocations,
+  );
+
+  let pickupHandoverForBooking: VehicleHandoverBookingOption | undefined =
+    parseVehicleHandoverBookingOption(raw.pickupHandoverLocation) ??
+    parseVehicleHandoverBookingOption(raw.pickupHandover) ??
+    undefined;
+
+  if (returnHandoversForBooking.length > 0 && !pickupHandoverForBooking && defaultPickupHandoverLocationId) {
+    pickupHandoverForBooking = {
+      id: defaultPickupHandoverLocationId,
+      name: defaultPickupHandoverName ?? pickupLocationLabel ?? defaultPickupHandoverLocationId,
+    };
+  }
 
   const optRaw = raw.optionDefinitions;
   const rentOptionDefinitions = Array.isArray(optRaw)
@@ -132,13 +187,32 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
     defaultReturnHandoverLocationId,
     defaultPickupHandoverName,
     defaultReturnHandoverName,
+    pickupHandoverForBooking,
+    returnHandoversForBooking: returnHandoversForBooking.length > 0 ? returnHandoversForBooking : undefined,
     rentOptionDefinitions,
   };
 }
 
+async function fetchVehiclesJsonFromGateway(): Promise<unknown[]> {
+  if (typeof window !== "undefined") {
+    return fetchVehiclesFromRentApi();
+  }
+  const { getAccessTokenFromCookies } = await import("@/lib/server/rentAccessToken");
+  const token = await getAccessTokenFromCookies();
+  const url = `${getRentApiRoot()}/vehicles`;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const r = await fetch(url, { headers, cache: "no-store" });
+  if (!r.ok) {
+    throw new Error(`Rent vehicles HTTP ${r.status}`);
+  }
+  const data: unknown = await r.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function fetchRentFleetVehicles(): Promise<FleetVehicle[]> {
   try {
-    const data = await fetchVehiclesFromRentApi();
+    const data = await fetchVehiclesJsonFromGateway();
     if (!Array.isArray(data)) return [];
     return data
       .map((row) => mapRentVehicleToFleet((row ?? {}) as RentVehicleDto))

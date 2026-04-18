@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { calendarCells, compareIso, monthStart } from "@/lib/calendarGrid";
 import { trHolidayDotSetForRange, trHolidaysOverlappingRange } from "@/data/trPublicHolidays";
-import { addDays, parseIsoDate, toIsoDate } from "@/lib/dates";
+import { addDays, parseIsoDate, rentalNights, toIsoDate } from "@/lib/dates";
 import { HERO_HALF_HOUR_SLOTS } from "@/components/ui/DayPickerPopover";
 
 const WEEKDAYS_FULL = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cts", "Paz"] as const;
@@ -93,9 +93,34 @@ type Props = {
   onPickTime: (t: string) => void;
   onReturnTime: (t: string) => void;
   className?: string;
-  /** Hero segment: ince “Alış / Bırakış tarihi” satırları; açılan panel ortak. */
-  layout?: "default" | "heroSearchBar";
+  /** Hero segment: ince “Alış / Bırakış tarihi” satırları; açılan panel ortak. `inline`: çift ay, anasayfadaki aralık seçimi (rezervasyon / modal). */
+  layout?: "default" | "heroSearchBar" | "inline";
+  /** Dolu günler — tıklanamaz; aralıkta varsa commit reddedilir. */
+  blockedDates?: Set<string>;
+  /** Alış ≤ teslim varsayımıyla çağrılır; hata metni veya `null`. */
+  onValidateRange?: (pickupIso: string, returnIso: string) => string | null;
+  /** `true` iken inline panelde saat seçicileri gösterilmez (ör. sadece tarih modalı). */
+  hideTimeSelects?: boolean;
+  /** `layout="inline"` iken üst başlık (örn. modal dış çerçevede başlık varsa `hideInlineTitle`). */
+  inlineTitle?: string;
+  hideInlineTitle?: boolean;
+  /** `layout="inline"` iken dış çerçeve + padding (modal içinde false). */
+  inlineFramed?: boolean;
+  /** `layout="inline"` iken gösterilecek ay sayısı (rezervasyon: 1). */
+  inlineMonthCount?: 1 | 2;
 };
+
+function eachIsoInInclusiveRange(fromIso: string, toIso: string, visit: (iso: string) => void) {
+  const lo = compareIso(fromIso, toIso) <= 0 ? fromIso : toIso;
+  const hi = compareIso(fromIso, toIso) <= 0 ? toIso : fromIso;
+  let cur = parseIsoDate(lo);
+  const end = parseIsoDate(hi);
+  if (!cur || !end) return;
+  while (cur.getTime() <= end.getTime()) {
+    visit(toIsoDate(cur));
+    cur = addDays(cur, 1);
+  }
+}
 
 export function HeroRentalRangeDatePickers({
   minDate,
@@ -109,11 +134,19 @@ export function HeroRentalRangeDatePickers({
   onReturnTime,
   className = "",
   layout = "default",
+  blockedDates,
+  onValidateRange,
+  hideTimeSelects = false,
+  inlineTitle = "Takvim",
+  hideInlineTitle = false,
+  inlineFramed = true,
+  inlineMonthCount = 2,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [anchorIso, setAnchorIso] = useState<string | null>(null);
   /** Hangi tarih alanından panel açıldı; aynı güne ikinci tıkta bu uç güncellenir. */
   const [openFrom, setOpenFrom] = useState<"pickup" | "return" | null>(null);
+  const [rangeCommitError, setRangeCommitError] = useState<string | null>(null);
   const [leftYM, setLeftYM] = useState(() => {
     const p = parseIsoDate(pickupDate);
     if (p) return { y: p.getFullYear(), m: p.getMonth() };
@@ -132,9 +165,18 @@ export function HeroRentalRangeDatePickers({
 
   const minD = parseIsoDate(minDate) ?? new Date(2000, 0, 1);
   const rightYM = useMemo(() => nextMonth(leftYM.y, leftYM.m), [leftYM]);
+  const inlineSingleMonth = layout === "inline" && inlineMonthCount === 1;
 
-  const visibleFromIso = toIsoDate(new Date(leftYM.y, leftYM.m, 1));
-  const visibleToIso = toIsoDate(new Date(rightYM.y, rightYM.m + 1, 0));
+  const visibleFromIso = useMemo(
+    () => toIsoDate(new Date(leftYM.y, leftYM.m, 1)),
+    [leftYM.y, leftYM.m],
+  );
+  const visibleToIso = useMemo(() => {
+    if (inlineSingleMonth) {
+      return toIsoDate(new Date(leftYM.y, leftYM.m + 1, 0));
+    }
+    return toIsoDate(new Date(rightYM.y, rightYM.m + 1, 0));
+  }, [inlineSingleMonth, leftYM.y, leftYM.m, rightYM.y, rightYM.m]);
 
   const dotSet = useMemo(
     () => trHolidayDotSetForRange(visibleFromIso, visibleToIso),
@@ -147,10 +189,19 @@ export function HeroRentalRangeDatePickers({
   );
 
   const visibleMonthsLabel = useMemo(() => {
+    if (inlineSingleMonth) {
+      return new Date(leftYM.y, leftYM.m, 1).toLocaleDateString("tr-TR", {
+        month: "long",
+        year: "numeric",
+      });
+    }
     const a = new Date(leftYM.y, leftYM.m, 1).toLocaleDateString("tr-TR", { month: "long" });
     const b = new Date(rightYM.y, rightYM.m, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
     return `${a} – ${b}`;
-  }, [leftYM.y, leftYM.m, rightYM.y, rightYM.m]);
+  }, [inlineSingleMonth, leftYM.y, leftYM.m, rightYM.y, rightYM.m]);
+
+  const navAriaPrev = inlineSingleMonth ? "Önceki ay" : "Önceki aylar";
+  const navAriaNext = inlineSingleMonth ? "Sonraki ay" : "Sonraki aylar";
 
   const isMobileFullscreenPanel = useSyncExternalStore(
     subscribeMobileFullscreenPanel,
@@ -159,10 +210,15 @@ export function HeroRentalRangeDatePickers({
   );
 
   const closePanel = useCallback(() => {
+    if (layout === "inline") {
+      setAnchorIso(null);
+      setOpenFrom(null);
+      return;
+    }
     setOpen(false);
     setAnchorIso(null);
     setOpenFrom(null);
-  }, []);
+  }, [layout]);
 
   const updateDesktopPortalPosition = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -211,13 +267,23 @@ export function HeroRentalRangeDatePickers({
   }, [open, updateDesktopPortalPosition, scheduleDesktopPortalPosition, leftYM, isMobileFullscreenPanel]);
 
   useEffect(() => {
+    if (layout === "inline") return;
     if (!open || !isMobileFullscreenPanel) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open, isMobileFullscreenPanel]);
+  }, [layout, open, isMobileFullscreenPanel]);
+
+  useEffect(() => {
+    if (layout !== "inline") return;
+    setAnchorIso(null);
+    setOpenFrom(null);
+    setRangeCommitError(null);
+    const p = parseIsoDate(pickupDate);
+    if (p) setLeftYM({ y: p.getFullYear(), m: p.getMonth() });
+  }, [layout, pickupDate, returnDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -247,11 +313,45 @@ export function HeroRentalRangeDatePickers({
     queueMicrotask(updateDesktopPortalPosition);
   };
 
+  const validateBlockedInRange = (fromIso: string, toIso: string): string | null => {
+    if (!blockedDates || blockedDates.size === 0) return null;
+    let hit: string | null = null;
+    eachIsoInInclusiveRange(fromIso, toIso, (iso) => {
+      if (blockedDates.has(iso)) hit = iso;
+    });
+    if (!hit) return null;
+    const d = parseIsoDate(hit);
+    const label = d ? d.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }) : hit;
+    return `Seçtiğiniz aralıkta dolu günler var (${label}). Lütfen aralığı değiştirin.`;
+  };
+
+  const finishRange = (pickupIso: string, returnIso: string) => {
+    const lo = compareIso(pickupIso, returnIso) <= 0 ? pickupIso : returnIso;
+    const hi = compareIso(pickupIso, returnIso) <= 0 ? returnIso : pickupIso;
+    const blockedMsg = validateBlockedInRange(lo, hi);
+    if (blockedMsg) {
+      setRangeCommitError(blockedMsg);
+      setAnchorIso(null);
+      return;
+    }
+    const custom = onValidateRange?.(pickupIso, returnIso) ?? null;
+    if (custom) {
+      setRangeCommitError(custom);
+      setAnchorIso(null);
+      return;
+    }
+    setRangeCommitError(null);
+    onRangeCommit(pickupIso, returnIso);
+    closePanel();
+  };
+
   const onDayClick = (iso: string) => {
     if (compareIso(iso, minDate) < 0) return;
     if (maxDate && compareIso(iso, maxDate) > 0) return;
+    if (blockedDates?.has(iso)) return;
 
     if (anchorIso == null) {
+      setRangeCommitError(null);
       setAnchorIso(iso);
       return;
     }
@@ -261,15 +361,14 @@ export function HeroRentalRangeDatePickers({
     if (iso === a) {
       /** İkinci tık aynı gün: alış veya teslim (hangi alandan açıldıysa) o gün olur; tek günlük kiralama için iki uç aynı ISO. */
       if (openFrom === "pickup") {
-        if (compareIso(returnDate, iso) >= 0) onRangeCommit(iso, returnDate);
-        else onRangeCommit(iso, iso);
+        if (compareIso(returnDate, iso) >= 0) finishRange(iso, returnDate);
+        else finishRange(iso, iso);
       } else if (openFrom === "return") {
-        if (compareIso(iso, pickupDate) >= 0) onRangeCommit(pickupDate, iso);
-        else onRangeCommit(iso, pickupDate);
+        if (compareIso(iso, pickupDate) >= 0) finishRange(pickupDate, iso);
+        else finishRange(iso, pickupDate);
       } else {
-        onRangeCommit(iso, iso);
+        finishRange(iso, iso);
       }
-      closePanel();
       return;
     }
 
@@ -281,8 +380,7 @@ export function HeroRentalRangeDatePickers({
       if (d) e = toIsoDate(addDays(d, 1));
     }
     if (maxDate && compareIso(e, maxDate) > 0) e = maxDate;
-    onRangeCommit(s, e);
-    closePanel();
+    finishRange(s, e);
   };
 
   const prevPair = () => {
@@ -314,13 +412,19 @@ export function HeroRentalRangeDatePickers({
 
   const rangePanelBody = (
     <>
+      {rangeCommitError ? (
+        <div className="mb-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-left text-xs leading-relaxed text-amber-950 dark:border-amber-400/35 dark:bg-amber-500/15 dark:text-amber-100 sm:mb-3 sm:text-sm">
+          {rangeCommitError}
+        </div>
+      ) : null}
+
       <div className="mb-2.5 flex items-center gap-2 sm:mb-3">
         <button
           type="button"
           onClick={prevPair}
           disabled={!canGoPrev(leftYM.y, leftYM.m, minD)}
           className="flex size-10 shrink-0 items-center justify-center rounded-lg text-xl font-light leading-none text-neutral-700 transition-colors hover:bg-neutral-100 disabled:pointer-events-none disabled:opacity-30 dark:text-text dark:hover:bg-white/10"
-          aria-label="Önceki aylar"
+          aria-label={navAriaPrev}
         >
           ‹
         </button>
@@ -332,7 +436,7 @@ export function HeroRentalRangeDatePickers({
           onClick={nextPair}
           disabled={!canGoNext(leftYM.y, leftYM.m, maxDate)}
           className="flex size-10 shrink-0 items-center justify-center rounded-lg text-xl font-light leading-none text-neutral-700 transition-colors hover:bg-neutral-100 disabled:pointer-events-none disabled:opacity-30 dark:text-text dark:hover:bg-white/10"
-          aria-label="Sonraki aylar"
+          aria-label={navAriaNext}
         >
           ›
         </button>
@@ -352,7 +456,70 @@ export function HeroRentalRangeDatePickers({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 md:gap-x-8 md:gap-y-0 lg:gap-x-10">
+      {layout === "inline" && !hideTimeSelects ? (
+        <div className="mb-2.5 grid grid-cols-1 gap-2.5 sm:mb-3 sm:grid-cols-2 sm:gap-3">
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-text-muted">
+              Alış saati <span className="text-red-600 dark:text-red-400">*</span>
+            </span>
+            <select
+              value={pickTime}
+              onChange={(e) => onPickTime(e.target.value)}
+              className={heroTimeSelectClass}
+              style={{ backgroundImage: chevronSvg }}
+              aria-label="Alış saati"
+              required
+            >
+              {!HERO_HALF_HOUR_SLOTS.includes(pickTime) ? <option value={pickTime}>{pickTime}</option> : null}
+              {HERO_HALF_HOUR_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-text-muted">
+              Teslim saati <span className="text-red-600 dark:text-red-400">*</span>
+            </span>
+            <select
+              value={returnTime}
+              onChange={(e) => onReturnTime(e.target.value)}
+              className={heroTimeSelectClass}
+              style={{ backgroundImage: chevronSvg }}
+              aria-label="Teslim saati"
+              required
+            >
+              {!HERO_HALF_HOUR_SLOTS.includes(returnTime) ? <option value={returnTime}>{returnTime}</option> : null}
+              {HERO_HALF_HOUR_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+
+      {layout === "inline" ? (() => {
+        const ps = parseIsoDate(pickupDate);
+        const rs = parseIsoDate(returnDate);
+        if (!ps || !rs || rs <= ps) return null;
+        const n = rentalNights(ps, rs);
+        return (
+          <p className="mb-2.5 text-center text-xs font-medium text-accent sm:mb-3 sm:text-sm">
+            {n} gün kiralama
+          </p>
+        );
+      }      )() : null}
+
+      <div
+        className={
+          inlineSingleMonth
+            ? "mx-auto grid w-full max-w-md grid-cols-1 gap-4"
+            : "grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 md:gap-x-8 md:gap-y-0 lg:gap-x-10"
+        }
+      >
         <MonthGrid
           year={leftYM.y}
           month={leftYM.m}
@@ -362,20 +529,37 @@ export function HeroRentalRangeDatePickers({
           minDate={minDate}
           maxDate={maxDate}
           dotSet={dotSet}
+          blockedDates={blockedDates}
           onDayClick={onDayClick}
         />
-        <MonthGrid
-          year={rightYM.y}
-          month={rightYM.m}
-          pickupDate={pickupDate}
-          returnDate={returnDate}
-          anchorIso={anchorIso}
-          minDate={minDate}
-          maxDate={maxDate}
-          dotSet={dotSet}
-          onDayClick={onDayClick}
-        />
+        {!inlineSingleMonth ? (
+          <MonthGrid
+            year={rightYM.y}
+            month={rightYM.m}
+            pickupDate={pickupDate}
+            returnDate={returnDate}
+            anchorIso={anchorIso}
+            minDate={minDate}
+            maxDate={maxDate}
+            dotSet={dotSet}
+            blockedDates={blockedDates}
+            onDayClick={onDayClick}
+          />
+        ) : null}
       </div>
+
+      {layout === "inline" ? (
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 border-t border-neutral-200/70 pt-3 text-[10px] text-neutral-600 dark:border-white/10 dark:text-text-muted sm:text-[11px]">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-navy-hero dark:bg-accent" aria-hidden />
+            Alış / bırakış ucu
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-red-500 shadow-sm dark:bg-red-600" aria-hidden />
+            Dolu
+          </span>
+        </div>
+      ) : null}
 
       {legendItems.length > 0 ? (
         <div className="mt-3.5 border-t border-neutral-200/70 pt-3 text-left text-[11px] leading-relaxed text-neutral-600 dark:border-white/10 dark:text-text-muted sm:mt-4 sm:pt-3.5 sm:text-xs md:text-[13px]">
@@ -465,6 +649,25 @@ export function HeroRentalRangeDatePickers({
           document.body,
         )
       : null;
+
+  if (layout === "inline") {
+    const framed =
+      inlineFramed !== false
+        ? "rounded-2xl border border-neutral-200/90 bg-white p-3 shadow-sm dark:border-border-subtle/80 dark:bg-bg-card/90 sm:p-4 md:p-5"
+        : "";
+    return (
+      <div className={`relative isolate w-full min-w-0 ${className}`.trim()}>
+        <div className={framed}>
+          {!hideInlineTitle ? (
+            <h2 className="mb-2 font-display text-base font-semibold text-neutral-900 dark:text-text sm:mb-3 sm:text-lg">
+              {inlineTitle}
+            </h2>
+          ) : null}
+          {rangePanelBody}
+        </div>
+      </div>
+    );
+  }
 
   if (layout === "heroSearchBar") {
     return (
@@ -633,6 +836,7 @@ function MonthGrid({
   minDate,
   maxDate,
   dotSet,
+  blockedDates,
   onDayClick,
 }: {
   year: number;
@@ -643,6 +847,7 @@ function MonthGrid({
   minDate: string;
   maxDate?: string;
   dotSet: Set<string>;
+  blockedDates?: Set<string>;
   onDayClick: (iso: string) => void;
 }) {
   const cells = calendarCells(year, month);
@@ -677,6 +882,7 @@ function MonthGrid({
               anchorIso={anchorIso}
               minDate={minDate}
               maxDate={maxDate}
+              blocked={Boolean(blockedDates?.has(toIsoDate(new Date(year, month, cell))))}
               hasDot={dotSet.has(toIsoDate(new Date(year, month, cell)))}
               onPick={() => onDayClick(toIsoDate(new Date(year, month, cell)))}
             />
@@ -695,6 +901,7 @@ function RangeDayCell({
   anchorIso,
   minDate,
   maxDate,
+  blocked,
   hasDot,
   onPick,
 }: {
@@ -705,9 +912,26 @@ function RangeDayCell({
   anchorIso: string | null;
   minDate: string;
   maxDate?: string;
+  blocked: boolean;
   hasDot: boolean;
   onPick: () => void;
 }) {
+  if (blocked) {
+    return (
+      <div
+        className="relative flex min-h-[2.55rem] min-w-0 items-center justify-center p-0 sm:aspect-square sm:min-h-0 lg:min-h-[2.75rem]"
+        title="Dolu — seçilemez"
+      >
+        <div
+          className="flex size-[1.5rem] shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold tabular-nums text-white shadow-sm ring-1 ring-red-600/30 dark:bg-red-600 dark:ring-red-500/40 sm:size-[1.65rem] sm:text-[11px]"
+          aria-label={`${day} — dolu`}
+        >
+          {day}
+        </div>
+      </div>
+    );
+  }
+
   const disabled = compareIso(iso, minDate) < 0 || (maxDate != null && compareIso(iso, maxDate) > 0);
   const start = compareIso(pickupDate, returnDate) <= 0 ? pickupDate : returnDate;
   const end = compareIso(pickupDate, returnDate) <= 0 ? returnDate : pickupDate;
@@ -715,36 +939,33 @@ function RangeDayCell({
   const isEnd = iso === end;
   const inMid = compareIso(iso, start) > 0 && compareIso(iso, end) < 0;
   const isAnchor = anchorIso != null && iso === anchorIso;
-  const single = start === end && isStart;
 
   const rangeTrack =
     "bg-sky-100/95 dark:bg-sky-400/[0.14]";
+  /** Uç günler: tam hücre yerine sabit yuvarlak — bitişik hücrelere taşmaz. */
+  const rangeCapDisc =
+    "flex size-[1.5rem] shrink-0 items-center justify-center rounded-full bg-navy-hero text-[10px] font-semibold text-white shadow-sm ring-1 ring-black/10 dark:bg-accent dark:text-accent-fg dark:ring-white/10 sm:size-[1.65rem] sm:text-[11px]";
+  const showRangeCap = !disabled && (isStart || isEnd);
 
   return (
-    <div className="relative min-h-[2.55rem] min-w-0 p-0 sm:aspect-square sm:min-h-0 lg:min-h-[2.85rem]">
-      {!disabled && (inMid || (isStart && !isEnd) || (isEnd && !isStart) || single) ? (
+    <div className="relative min-h-[2.55rem] min-w-0 p-0 sm:aspect-square sm:min-h-0 lg:min-h-[2.75rem]">
+      {!disabled && (inMid || (isStart && !isEnd) || (isEnd && !isStart)) ? (
         <>
           {inMid ? (
             <div
-              className={`pointer-events-none absolute left-0 right-0 top-1/2 z-0 h-8 -translate-y-1/2 lg:h-9 ${rangeTrack}`}
+              className={`pointer-events-none absolute left-0 right-0 top-1/2 z-0 h-5 -translate-y-1/2 sm:h-5 ${rangeTrack}`}
               aria-hidden
             />
           ) : null}
           {isStart && !isEnd ? (
             <div
-              className={`pointer-events-none absolute left-1/2 right-0 top-1/2 z-0 h-8 -translate-y-1/2 rounded-l-md lg:h-9 ${rangeTrack}`}
+              className={`pointer-events-none absolute left-1/2 right-0 top-1/2 z-0 h-5 -translate-y-1/2 rounded-l-md sm:h-5 ${rangeTrack}`}
               aria-hidden
             />
           ) : null}
           {isEnd && !isStart ? (
             <div
-              className={`pointer-events-none absolute left-0 right-1/2 top-1/2 z-0 h-8 -translate-y-1/2 rounded-r-md lg:h-9 ${rangeTrack}`}
-              aria-hidden
-            />
-          ) : null}
-          {single ? (
-            <div
-              className={`pointer-events-none absolute inset-[3px] z-0 rounded-full ${rangeTrack}`}
+              className={`pointer-events-none absolute left-0 right-1/2 top-1/2 z-0 h-5 -translate-y-1/2 rounded-r-md sm:h-5 ${rangeTrack}`}
               aria-hidden
             />
           ) : null}
@@ -755,22 +976,46 @@ function RangeDayCell({
         type="button"
         disabled={disabled}
         onClick={onPick}
-        className={`relative z-[1] flex h-full min-h-[2.55rem] w-full min-w-0 flex-col items-center justify-center rounded-full text-[13px] font-semibold tabular-nums transition-[color,background-color,box-shadow] duration-150 sm:min-h-0 sm:text-[14px] md:text-[15px] lg:min-h-[2.85rem] lg:text-base ${
-          hasDot && !disabled ? "gap-0.5" : ""
+        className={`group relative z-[1] flex h-full min-h-[2.55rem] w-full min-w-0 flex-col items-center justify-center text-[13px] font-semibold tabular-nums transition-colors duration-150 sm:min-h-0 sm:text-[14px] md:text-[15px] lg:min-h-[2.75rem] lg:text-base ${
+          hasDot && !disabled && !showRangeCap ? "gap-0.5" : ""
         } ${
           disabled
-            ? "cursor-not-allowed text-neutral-300 dark:text-text-muted/35"
-            : isStart || isEnd
-              ? "bg-navy-hero text-white shadow-sm dark:shadow-black/25"
+            ? "cursor-not-allowed rounded-none text-neutral-300 dark:text-text-muted/35"
+            : showRangeCap
+              ? "cursor-pointer rounded-none bg-transparent text-transparent"
               : inMid
-                ? "text-neutral-800 hover:bg-sky-100/40 dark:text-text dark:hover:bg-sky-400/10"
-                : "text-neutral-800 hover:bg-neutral-100/90 dark:text-text dark:hover:bg-white/10"
-        } ${isAnchor && !isStart && !isEnd ? "ring-2 ring-accent/70 ring-offset-1 ring-offset-white dark:ring-offset-bg-card" : ""} `}
+                ? "cursor-pointer rounded-none text-neutral-800 hover:bg-sky-100/35 dark:text-text dark:hover:bg-sky-400/10"
+                : "cursor-pointer rounded-none bg-transparent text-neutral-800 dark:text-text"
+        } `}
       >
-        <span>{day}</span>
-        {hasDot && !disabled ? (
-          <span className="size-1 shrink-0 rounded-full bg-orange-500" aria-hidden />
-        ) : null}
+        {showRangeCap ? (
+          <span className="relative z-[2] flex flex-col items-center gap-0.5">
+            <span
+              className={`${rangeCapDisc} ${isAnchor ? "ring-2 ring-accent/80 ring-offset-1 ring-offset-white dark:ring-offset-bg-card" : ""}`}
+            >
+              {day}
+            </span>
+            {hasDot ? <span className="size-1 shrink-0 rounded-full bg-orange-500" aria-hidden /> : null}
+          </span>
+        ) : inMid ? (
+          <span className="relative z-[2] flex flex-col items-center gap-0.5">
+            <span>{day}</span>
+            {hasDot ? <span className="size-1 shrink-0 rounded-full bg-orange-500" aria-hidden /> : null}
+          </span>
+        ) : disabled ? (
+          <span className="relative z-[2]">{day}</span>
+        ) : (
+          <span
+            className={`relative z-[2] flex min-h-[1.6rem] min-w-[1.6rem] flex-col items-center justify-center rounded-full text-[12px] transition-[background-color,box-shadow] duration-150 sm:min-h-[1.75rem] sm:min-w-[1.75rem] sm:text-[13px] ${
+              isAnchor
+                ? "bg-neutral-100/90 ring-2 ring-accent/65 ring-offset-1 ring-offset-white dark:bg-white/10 dark:ring-accent/50 dark:ring-offset-bg-card"
+                : "group-hover:bg-neutral-100/95 group-hover:ring-1 group-hover:ring-neutral-300/80 dark:group-hover:bg-white/[0.08] dark:group-hover:ring-white/15"
+            } `}
+          >
+            <span>{day}</span>
+            {hasDot ? <span className="mt-0.5 size-1 shrink-0 rounded-full bg-orange-500" aria-hidden /> : null}
+          </span>
+        )}
       </button>
     </div>
   );

@@ -37,14 +37,31 @@ export type RentHandoverLocationDto = Record<string, unknown>;
 export type RentalOptionPayload = {
   /** Doluysa başlık/fiyat sunucuda araç tanımından alınır. */
   vehicleOptionDefinitionId?: string;
+  /** Rezervasyon ek şablonu (DB); doluysa başlık/fiyat sunucuda şablondan alınır. */
+  reservationExtraTemplateId?: string;
   title?: string;
   description?: string | null;
   price?: number;
   icon?: string | null;
 };
 
+/** `GET /reservation-extra-options` — rezervasyon sihirbazı ek hizmet kataloğu. */
+export type ReservationExtraOptionTemplateDto = {
+  id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  price: number;
+  icon: string | null;
+  lineOrder: number;
+  active?: boolean;
+  requiresCoDriverDetails: boolean;
+};
+
 export type CreateRentalRequestFormPayload = {
   vehicleId?: string;
+  /** Misafir: JWT’deki session UUID (`rental_requests.user_id`); üye akışında profil ile doldurulabilir. */
+  userId?: string;
   startDate: string;
   endDate: string;
   /** rent-service `handover_locations` (kind PICKUP); opsiyonel. */
@@ -79,6 +96,33 @@ export type CreateRentalRequestFormPayload = {
 export async function fetchHandoverLocationsFromRentApi(kind?: "PICKUP" | "RETURN") {
   const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
   return apiRequest<RentHandoverLocationDto[]>(`/handover-locations${q}`, "GET");
+}
+
+export type HandoverPricingQuoteDto = {
+  pickupLegEur: number;
+  returnLegEur: number;
+  routeEur: number;
+  totalEur: number;
+  applied: boolean;
+};
+
+export async function fetchHandoverPricingQuoteFromRentApi(pickupHandoverId: string, returnHandoverId: string) {
+  const q = new URLSearchParams({ pickupHandoverId, returnHandoverId });
+  return apiRequest<HandoverPricingQuoteDto>(`/handover-pricing/quote?${q.toString()}`, "GET");
+}
+
+export async function fetchHandoverPricingQuoteAsRentGuest(pickupHandoverId: string, returnHandoverId: string) {
+  const q = new URLSearchParams({ pickupHandoverId, returnHandoverId });
+  const r = await fetch(`/api/rent/guest/handover-pricing/quote?${q.toString()}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  return parseGuestBffJson<HandoverPricingQuoteDto>(r);
+}
+
+export async function fetchReservationExtraOptionsFromRentApi() {
+  return apiRequest<ReservationExtraOptionTemplateDto[]>("/reservation-extra-options", "GET");
 }
 
 export async function fetchVehiclesFromRentApi() {
@@ -199,6 +243,51 @@ export async function fetchRentalRequestsFromRentApi() {
 
 export async function createRentalRequestOnRentApi(payload: CreateRentalRequestFormPayload) {
   return apiRequest<RentRentalRequestDto>("/rental-requests", "POST", payload);
+}
+
+async function parseGuestBffJson<T>(r: Response): Promise<T> {
+  const data: unknown = await r.json().catch(() => null);
+  if (!r.ok) {
+    const msg =
+      data != null && typeof data === "object" && "message" in data && typeof (data as { message?: unknown }).message === "string"
+        ? (data as { message: string }).message
+        : typeof data === "string"
+          ? data
+          : JSON.stringify(data ?? "") || `Rent API error (${r.status})`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+/** Misafir: BFF → gateway `/rent/guest/...` (JWT yok). */
+export async function fetchHandoverLocationsAsRentGuest(kind?: "PICKUP" | "RETURN") {
+  const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  const r = await fetch(`/api/rent/guest/handover-locations${q}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  return parseGuestBffJson<RentHandoverLocationDto[]>(r);
+}
+
+export async function fetchReservationExtraOptionsAsRentGuest() {
+  const r = await fetch("/api/rent/guest/reservation-extra-options", {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  return parseGuestBffJson<ReservationExtraOptionTemplateDto[]>(r);
+}
+
+export async function createRentalRequestAsRentGuest(payload: CreateRentalRequestFormPayload) {
+  const r = await fetch("/api/rent/guest/rental-requests", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseGuestBffJson<RentRentalRequestDto>(r);
 }
 
 export async function fetchRentalRequestByReferenceFromRentApi(referenceNo: string) {

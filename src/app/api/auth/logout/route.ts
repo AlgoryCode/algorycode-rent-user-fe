@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { clearRentFeRolesCookie } from "@/lib/rbac/role-cookie";
+import { RENT_GUEST_SESSION_COOKIE } from "@/lib/server/rentGuestSessionCookie";
 
 export async function POST() {
   const response = NextResponse.json({ ok: true });
@@ -17,5 +18,6 @@ export async function POST() {
   response.cookies.set("refreshToken", "", clearCookieOptions);
   response.cookies.set("algory_2fa_pending", "", clearCookieOptions);
   clearRentFeRolesCookie(response);
+  response.cookies.set(RENT_GUEST_SESSION_COOKIE, "", clearCookieOptions);
   return response;
 }

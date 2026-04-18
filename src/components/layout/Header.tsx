@@ -15,7 +15,7 @@ import {
   Cog6ToothIcon,
   XMarkIcon,
 } from "@/components/ui/Icons";
-import { fetchHasBffSession } from "@/lib/bff-access-token";
+import { fetchHasBffMemberSession } from "@/lib/bff-access-token";
 import { clearClientAuthSession, getStoredAuthUser } from "@/lib/authSession";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -53,7 +53,7 @@ export function Header() {
   const displayEmail = profileEmail;
 
   useEffect(() => {
-    void fetchHasBffSession().then(setIsAuthed);
+    void fetchHasBffMemberSession().then(setIsAuthed);
   }, [pathname]);
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export function Header() {
         open={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
         redirectTo={pathname}
-        onLoggedIn={() => void fetchHasBffSession().then(setIsAuthed)}
+        onLoggedIn={() => void fetchHasBffMemberSession().then(setIsAuthed)}
       />
       <div className="mx-auto flex min-h-[var(--header-h)] max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5 md:gap-6 lg:gap-8">

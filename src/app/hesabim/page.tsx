@@ -21,8 +21,9 @@ import { resolveBffAccessToken } from "@/lib/bff-access-token";
 import { clearClientAuthSession, getStoredAuthUser, readUserIdFromJwt, setStoredAuthUser } from "@/lib/authSession";
 import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/rentApi";
 import { compareIso } from "@/lib/calendarGrid";
-import { formatTrDate } from "@/lib/dates";
-import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/Icons";
+import { formatTrDate, formatTrDateTime } from "@/lib/dates";
+import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from "@/components/ui/Icons";
+import { rentSoftSearchShellClass } from "@/components/ui/rentFeSurfaces";
 
 type AccountTab = "profil" | "guvenlik" | "bildirim" | "tercihler" | "rezervasyonlar";
 
@@ -50,8 +51,21 @@ const ACCOUNT_NAV: readonly { id: AccountTab; title: string; description: string
   { id: "guvenlik", title: "Güvenlik", description: "Şifre ve iki aşamalı doğrulama" },
   { id: "bildirim", title: "Bildirimler", description: "E-posta ve bildirim tercihleri" },
   { id: "tercihler", title: "Tercihler", description: "Görünüm ve site deneyimi" },
-  { id: "rezervasyonlar", title: "Rezervasyonlarım", description: "Geçmiş kiralamalar ve talepler" },
+  { id: "rezervasyonlar", title: "Rezervasyonlarım", description: "" },
 ];
+
+/** SCREAMING_SNAKE veya düz kod → her kelimenin başı büyük (örn. TALEP_ALINDI → Talep Alındı). */
+function reservationStatusLabel(code: string | undefined): string {
+  const u = (code || "").trim();
+  if (!u) return "Beklemede";
+  const spaced = u.includes("_") ? u.replace(/_+/g, " ") : u;
+  const lower = spaced.toLocaleLowerCase("tr-TR");
+  return lower
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toLocaleUpperCase("tr-TR") + w.slice(1))
+    .join(" ");
+}
 
 function HesabimPageContent() {
   const router = useRouter();
@@ -61,7 +75,7 @@ function HesabimPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [saving, setSaving] = useState(false);
-  const [reservationTab, setReservationTab] = useState<"gecmis" | "talepler">("gecmis");
+  const [reservationTab, setReservationTab] = useState<"gecmis" | "talepler">("talepler");
   const [reservationsLoading, setReservationsLoading] = useState(false);
   const [reservationsError, setReservationsError] = useState<string | null>(null);
   const [rentalRows, setRentalRows] = useState<ReservationRow[]>([]);
@@ -403,7 +417,9 @@ function HesabimPageContent() {
                         >
                           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                             <span className="text-[15px] font-medium tracking-tight text-text">{item.title}</span>
-                            <span className="text-xs leading-snug text-text-muted">{item.description}</span>
+                            {item.description ? (
+                              <span className="text-xs leading-snug text-text-muted">{item.description}</span>
+                            ) : null}
                           </span>
                           <ChevronRightIcon className="size-[18px] shrink-0 text-text-muted/70" />
                         </button>
@@ -421,12 +437,16 @@ function HesabimPageContent() {
                     <ChevronLeftIcon className="size-[18px] shrink-0" />
                     Ayarlara dön
                   </button>
-                  {sectionMeta && (
-                    <header className="mb-8 border-b border-border-subtle/70 pb-6">
+                  {sectionMeta ? (
+                    sectionMeta.description ? (
+                      <header className="mb-8 border-b border-border-subtle/70 pb-6">
+                        <h2 className="sr-only">{sectionMeta.title}</h2>
+                        <p className="text-sm leading-relaxed text-text-muted">{sectionMeta.description}</p>
+                      </header>
+                    ) : (
                       <h2 className="sr-only">{sectionMeta.title}</h2>
-                      <p className="text-sm leading-relaxed text-text-muted">{sectionMeta.description}</p>
-                    </header>
-                  )}
+                    )
+                  ) : null}
                   <div className="space-y-6">
             {activeSection === "profil" && (
               <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
@@ -498,22 +518,11 @@ function HesabimPageContent() {
               <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Link href="/araclar" className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-fg">
-                    Yeni rezervasyon oluştur
+                    Yeni Rezervasyon Oluştur
                   </Link>
                 </div>
 
                 <div className="mt-4 grid w-full max-w-xl grid-cols-2 gap-1 rounded-xl border border-border-subtle/70 bg-bg-raised/25 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setReservationTab("gecmis")}
-                    className={`rounded-lg px-2 py-2.5 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 sm:px-3 sm:text-xs ${
-                      reservationTab === "gecmis"
-                        ? "bg-bg-card text-text shadow-sm ring-1 ring-border-subtle/60"
-                        : "text-text-muted hover:bg-bg-card/60"
-                    }`}
-                  >
-                    Geçmiş rezervasyonlar
-                  </button>
                   <button
                     type="button"
                     onClick={() => setReservationTab("talepler")}
@@ -523,17 +532,40 @@ function HesabimPageContent() {
                         : "text-text-muted hover:bg-bg-card/60"
                     }`}
                   >
-                    Rezervasyon talepleri
+                    Rezervasyon Talepleri
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReservationTab("gecmis")}
+                    className={`rounded-lg px-2 py-2.5 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 sm:px-3 sm:text-xs ${
+                      reservationTab === "gecmis"
+                        ? "bg-bg-card text-text shadow-sm ring-1 ring-border-subtle/60"
+                        : "text-text-muted hover:bg-bg-card/60"
+                    }`}
+                  >
+                    Geçmiş Rezervasyonlar
                   </button>
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                  <input
-                    className="rounded-lg border border-border-subtle bg-bg-card px-3 py-2 text-sm text-text sm:col-span-2"
-                    placeholder="Marka, model, plaka, referans..."
-                    value={reservationQuery}
-                    onChange={(e) => setReservationQuery(e.target.value)}
-                  />
+                  <div
+                    className={`flex min-h-[44px] min-w-0 items-center gap-2.5 px-3 sm:col-span-2 ${rentSoftSearchShellClass}`}
+                  >
+                    <MagnifyingGlassIcon className="size-4 shrink-0 text-text-muted" />
+                    <label htmlFor="hesabim-reservation-search" className="sr-only">
+                      Rezervasyonlarda ara
+                    </label>
+                    <input
+                      id="hesabim-reservation-search"
+                      type="search"
+                      enterKeyHint="search"
+                      autoComplete="off"
+                      className="min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-text outline-none ring-0 placeholder:text-text-muted/85 focus:outline-none focus:ring-0 [&::-webkit-search-cancel-button]:opacity-60"
+                      placeholder="Marka, Model, Plaka, Referans..."
+                      value={reservationQuery}
+                      onChange={(e) => setReservationQuery(e.target.value)}
+                    />
+                  </div>
                   <label className="text-xs text-text-muted">Başlangıç
                     <input type="date" value={reservationFrom} onChange={(e) => setReservationFrom(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2 text-sm text-text" />
                   </label>
@@ -542,42 +574,58 @@ function HesabimPageContent() {
                   </label>
                 </div>
 
-                {reservationsLoading && <p className="mt-3 text-sm text-text-muted">Rezervasyonlar yükleniyor...</p>}
+                {reservationsLoading && <p className="mt-3 text-sm text-text-muted">Rezervasyonlar Yükleniyor…</p>}
                 {reservationsError && <p className="mt-3 text-sm text-rose-300">{reservationsError}</p>}
 
                 {!reservationsLoading && (
                   <div className="mt-3 space-y-2">
-                    {(reservationTab === "gecmis" ? filteredRentals : filteredRequests).map((r) => (
-                      <article key={`${r.kind}-${r.id}`} className="rounded-lg border border-border-subtle/80 bg-bg-raised/30 p-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold text-text">{r.vehicleBrand} {r.vehicleName}</p>
-                            <p className="text-xs text-text-muted">
-                              {formatTrDate(r.startDate)} → {formatTrDate(r.endDate)}
-                              {r.plate ? ` · Plaka: ${r.plate}` : ""}
-                              {r.referenceNo ? ` · Ref: ${r.referenceNo}` : ""}
-                            </p>
+                    {(reservationTab === "gecmis" ? filteredRentals : filteredRequests).map((r) => {
+                      const detailHref = `/hesabim/rezervasyon/${r.kind}/${encodeURIComponent(r.id)}`;
+                      const cardClass =
+                        "rounded-lg border border-border-subtle/80 bg-bg-raised/30 p-3 transition-colors cursor-pointer hover:border-accent/40 hover:bg-bg-raised/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35";
+                      const inner = (
+                        <>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-text">
+                                {r.vehicleBrand} {r.vehicleName}
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {formatTrDate(r.startDate)} → {formatTrDate(r.endDate)}
+                                {r.plate ? ` · Plaka: ${r.plate}` : ""}
+                                {r.referenceNo ? ` · Ref: ${r.referenceNo}` : ""}
+                              </p>
+                            </div>
+                            <span className="rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-muted">
+                              {reservationStatusLabel(r.status)}
+                            </span>
                           </div>
-                          <span className="rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-muted">{r.status || "Beklemede"}</span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          {r.vehicleId && (
-                            <Link href={`/arac/${r.vehicleId}`} className="text-xs font-medium text-accent hover:underline">
-                              Kiralama detayına git
-                            </Link>
-                          )}
-                          <span className="text-[11px] text-text-muted">Oluşturma: {formatTrDate(r.createdAt)}</span>
-                        </div>
-                      </article>
-                    ))}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] text-text-muted">
+                              Oluşturma: {formatTrDateTime(r.createdAt)}
+                            </span>
+                          </div>
+                        </>
+                      );
+                      return (
+                        <Link
+                          key={`${r.kind}-${r.id}`}
+                          href={detailHref}
+                          aria-label={`${r.vehicleBrand} ${r.vehicleName} — Kiralama Detayı`}
+                          className={`block no-underline text-inherit ${cardClass}`}
+                        >
+                          {inner}
+                        </Link>
+                      );
+                    })}
                     {(reservationTab === "gecmis" ? filteredRentals : filteredRequests).length === 0 && (
                       <div className="rounded-lg border border-border-subtle/80 bg-bg-raised/20 px-3 py-4 text-center">
                         {rentalRows.length === 0 && requestRows.length === 0 ? (
                           <>
                             <div className="text-4xl mb-2">🚗</div>
-                            <p className="text-sm font-medium text-text mb-2">Henüz hiç rezervasyonunuz bulunmuyor</p>
+                            <p className="text-sm font-medium text-text mb-2">Henüz Hiç Rezervasyonunuz Bulunmuyor</p>
                             <p className="text-xs text-text-muted mb-3">
-                              Hayalinizdeki aracı keşfedin ve unutulmaz bir yolculuğa adım atın!
+                              Hayalinizdeki Aracı Keşfedin ve Unutulmaz Bir Yolculuğa Adım Atın!
                             </p>
                             <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-fg hover:bg-accent/90">
                               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -588,7 +636,7 @@ function HesabimPageContent() {
                           </>
                         ) : (
                           <p className="text-sm text-text-muted">
-                            Bu filtrelerde sonuç bulunamadı.
+                            Bu Filtrelerde Sonuç Bulunamadı.
                           </p>
                         )}
                       </div>
@@ -742,9 +790,8 @@ function mapReservationRow(raw: unknown, kind: "rental" | "request", i: number):
   const endDate = normalizeIsoLike(getString(obj, ["endDate", "returnDate", "rentEnd", "teslim"]) || "");
   if (!startDate || !endDate) return null;
 
-  const createdAt =
-    normalizeIsoLike(getString(obj, ["createdAt", "createdDate", "requestDate", "updatedAt"])) ||
-    startDate;
+  const createdAtRaw = getString(obj, ["createdAt", "createdDate", "requestDate", "updatedAt"]).trim();
+  const createdAt = createdAtRaw || startDate;
 
   const vehicleName = getString(vehicle, ["name", "model"]) || getString(obj, ["vehicleName", "model"]) || "Araç";
   const vehicleBrand = getString(vehicle, ["brand"]) || getString(obj, ["vehicleBrand", "brand"]) || "-";
@@ -803,7 +850,7 @@ function readLocalReservationSnapshots(): ReservationRow[] {
         plate: getString(obj, ["plate"]) || undefined,
         startDate,
         endDate,
-        createdAt: normalizeIsoLike(getString(obj, ["createdAt"])) || startDate,
+        createdAt: getString(obj, ["createdAt"]).trim() || startDate,
         customerEmail: getString(obj, ["customerEmail"]) || undefined,
         customerPhone: getString(obj, ["customerPhone"]) || undefined,
         customerName: getString(obj, ["customerName"]) || undefined,

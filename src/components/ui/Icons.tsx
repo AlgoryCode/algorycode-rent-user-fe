@@ -242,6 +242,26 @@ export function DocumentTextOutlineIcon({ className = "size-5" }: { className?: 
   );
 }
 
+export function MagnifyingGlassIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg
+      className={`shrink-0 ${className}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM16.5 16.5L21 21"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** WhatsApp markası (tek renk; yeşil için sınıfta text-[#25D366] kullanın) */
 export function WhatsAppBrandIcon({ className = "size-6" }: { className?: string }) {
   return (

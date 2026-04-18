@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { checkEmailRegisteredOnBff, startGuestSessionOnBff } from "@/lib/guestAuthClient";
+import { checkEmailRegisteredOnBff, startRentGuestSessionOnBff } from "@/lib/guestAuthClient";
 import { RentIconBackButton } from "@/components/ui/RentIconBack";
 
 function isEmail(s: string) {
@@ -40,7 +40,7 @@ export function GuestReservationGate({
       setBusy(true);
       setError(null);
       try {
-        await startGuestSessionOnBff(addr);
+        await startRentGuestSessionOnBff(addr);
         onAuthenticated(addr.trim().toLowerCase());
       } catch (e) {
         setError(e instanceof Error ? e.message : "Misafir oturumu açılamadı.");

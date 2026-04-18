@@ -1,5 +1,11 @@
 import { clearBffBearerCache } from "@/lib/bff-access-token";
 
+/** Araç sayfası misafir kapısı → `/rezervasyon` geçişinde sihirbazın aynı soruyu ardışık sormaması için URL işareti. */
+export const RENT_RESERVATION_GUEST_ACK_QUERY = "guestAck";
+
+/** Misafir e-posta ön dolumu (tek seferlik; URL strip edilir). */
+export const RENT_GUEST_PREFILL_EMAIL_QUERY = "guestEmail";
+
 function isEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 }
@@ -24,12 +30,13 @@ export async function checkEmailRegisteredOnBff(email: string): Promise<EmailChe
   return { exists: Boolean(j.exists), failOpen: Boolean(j.failOpen) };
 }
 
-export async function startGuestSessionOnBff(email: string): Promise<void> {
+/** Misafir JWT yok; httpOnly `rent_guest_session` çerezi ({@code sid}, {@code email}). */
+export async function startRentGuestSessionOnBff(email: string): Promise<void> {
   const trimmed = email.trim();
   if (!isEmail(trimmed)) {
     throw new Error("Geçerli bir e-posta girin.");
   }
-  const r = await fetch("/api/auth/guest/access-token", {
+  const r = await fetch("/api/rent/guest/session", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "same-origin",

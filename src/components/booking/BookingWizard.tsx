@@ -17,23 +17,37 @@ import { useI18n } from "@/components/i18n/LocaleProvider";
 import type { FleetVehicle } from "@/data/fleet";
 import { blockedDaysInInclusiveRange, blockedSetForVehicle } from "@/data/availability";
 import { getLocationById, pickupLocations } from "@/data/locations";
-import { RentalAvailabilityCalendarPanel } from "@/components/calendar/RentalAvailabilityCalendarPanel";
+import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
 import { compareIso } from "@/lib/calendarGrid";
 import { addDays, parseIsoDate, rentalNights, formatTrDate, todayIso, toIsoDate } from "@/lib/dates";
-import { computeRentalSubtotal, crossBorderOneWaySurcharge, vehicleAbroadUsageSurcharge } from "@/lib/pricing";
 import {
+  computeRentalSubtotal,
+  crossBorderOneWaySurcharge,
+  eurToTry,
+  vehicleAbroadUsageSurcharge,
+} from "@/lib/pricing";
+import {
+  createRentalRequestAsRentGuest,
   createRentalRequestOnRentApi,
+  fetchHandoverLocationsAsRentGuest,
   fetchHandoverLocationsFromRentApi,
+  fetchHandoverPricingQuoteAsRentGuest,
+  fetchHandoverPricingQuoteFromRentApi,
+  fetchReservationExtraOptionsAsRentGuest,
+  fetchReservationExtraOptionsFromRentApi,
   type CreateRentalRequestFormPayload,
+  type ReservationExtraOptionTemplateDto,
 } from "@/lib/rentApi";
 import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
-import { fetchHasBffSession } from "@/lib/bff-access-token";
+import { fetchHasBffMemberSession } from "@/lib/bff-access-token";
+import { RENT_GUEST_PREFILL_EMAIL_QUERY, RENT_RESERVATION_GUEST_ACK_QUERY } from "@/lib/guestAuthClient";
 import { getStoredAuthUser } from "@/lib/authSession";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { DayPickerPopover } from "@/components/ui/DayPickerPopover";
 import { RentIconBackButton, RentIconBackLink } from "@/components/ui/RentIconBack";
 import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
+import { HERO_HALF_HOUR_SLOTS } from "@/components/ui/DayPickerPopover";
 import { RentSelect } from "@/components/ui/RentSelect";
 
 const steps = [
@@ -43,59 +57,8 @@ const steps = [
   { id: 4, title: "Onay", short: "Onay" },
 ];
 
-/** Demo: ek ücretler € cinsinden; toplamda TRY ile birleştirmek için sabit kur. */
-const EXTRA_EUR_TO_TRY_DEMO = 35;
 /** Demo: farklı bırakış (örn. 35$) — alış/teslim ülkesi aynıyken uygulanan sabit TRY ek ücreti */
 const DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY = 1250;
-
-type ExtraServiceId = "baby_seat" | "extra_driver" | "green_insurance_me" | "green_insurance_balkan";
-
-const EXTRA_SERVICE_ORDER: ExtraServiceId[] = [
-  "baby_seat",
-  "extra_driver",
-  "green_insurance_me",
-  "green_insurance_balkan",
-];
-
-function eurForExtraService(id: ExtraServiceId): number {
-  switch (id) {
-    case "baby_seat":
-    case "extra_driver":
-      return 10;
-    case "green_insurance_me":
-      return 20;
-    case "green_insurance_balkan":
-      return 40;
-  }
-}
-
-function totalExtraEur(selected: ReadonlySet<ExtraServiceId>): number {
-  let t = 0;
-  for (const id of selected) t += eurForExtraService(id);
-  return t;
-}
-
-function extraServiceShortLabel(id: ExtraServiceId): string {
-  switch (id) {
-    case "baby_seat":
-      return "Bebek koltuğu";
-    case "extra_driver":
-      return "Ek şöför";
-    case "green_insurance_me":
-      return "Yeşil sigorta (Karadağ)";
-    case "green_insurance_balkan":
-      return "Yeşil sigorta (AL · XK · ME · MK)";
-  }
-}
-
-/** Onay özeti için; seçim sırası sabit. */
-function extrasSummarySentence(selected: ReadonlySet<ExtraServiceId>): string | null {
-  if (selected.size === 0) return null;
-  return EXTRA_SERVICE_ORDER.filter((id) => selected.has(id)).map(extraServiceShortLabel).join(" · ");
-}
-
-const defaultGarageCopy =
-  "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -208,6 +171,39 @@ function ExtraFeesPricingSection({
   );
 }
 
+function DifferentDropoffPricingSection({
+  formatPrice,
+  surchargeTry,
+  lines,
+}: {
+  formatPrice: (amountTry: number) => string;
+  surchargeTry: number;
+  lines: ExtraFeeLineItem[];
+}) {
+  if (lines.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between gap-2 font-medium text-text">
+        <span>Farklı teslim noktası</span>
+        <span className="shrink-0 tabular-nums text-text">{formatPrice(surchargeTry)}</span>
+      </div>
+      <ul className="ml-1.5 space-y-0.5 border-l-2 border-border-subtle/60 pl-2.5 text-[12px] leading-snug text-text-muted">
+        {lines.map((row) => (
+          <li key={row.key} className="flex justify-between gap-2">
+            <span className="min-w-0">
+              <span className="text-text-muted/80" aria-hidden>
+                -{" "}
+              </span>
+              {row.label}
+            </span>
+            <span className="shrink-0 tabular-nums">{formatPrice(row.amountTry)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function BookingRentalSummaryCard({
   vehicle,
   nights,
@@ -216,14 +212,15 @@ function BookingRentalSummaryCard({
   formatPrice,
   vehicleBaseSubtotalTry,
   differentDropoffSurchargeTry,
-  differentDropoffSurchargeLabel,
+  differentDropoffDetailLines,
   extraFeeTry,
   extraFeeLineItems,
   total,
-  selectedExtras,
   differentDropoff,
   pickupLocationLabel,
   returnLocationLabel,
+  pickupTime,
+  returnTime,
 }: {
   vehicle: FleetVehicle;
   nights: number | null;
@@ -232,14 +229,16 @@ function BookingRentalSummaryCard({
   formatPrice: (amountTry: number) => string;
   vehicleBaseSubtotalTry: number;
   differentDropoffSurchargeTry: number;
-  differentDropoffSurchargeLabel: string | null;
+  differentDropoffDetailLines: ExtraFeeLineItem[];
   extraFeeTry: number;
   extraFeeLineItems: ExtraFeeLineItem[];
   total: number;
-  selectedExtras: ReadonlySet<ExtraServiceId>;
   differentDropoff: boolean;
   pickupLocationLabel: string;
   returnLocationLabel: string;
+  /** Özet satırında alış/teslim saati (örn. `08:00`). */
+  pickupTime?: string;
+  returnTime?: string;
 }) {
   return (
     <div className="rounded-xl border border-border-subtle bg-bg-card/80 p-4 backdrop-blur-md">
@@ -258,9 +257,21 @@ function BookingRentalSummaryCard({
           <div className="mt-3 space-y-1.5 rounded-lg border border-border-subtle/70 bg-bg-raised/35 px-3 py-2.5 text-[12px] leading-snug text-text-muted dark:bg-bg-deep/25">
             <p>
               <span className="font-semibold text-text">Alış:</span> {formatTrDate(pickup)}
+              {pickupTime ? (
+                <>
+                  {" "}
+                  <span className="tabular-nums text-text-muted">· {pickupTime}</span>
+                </>
+              ) : null}
             </p>
             <p>
               <span className="font-semibold text-text">Teslim:</span> {formatTrDate(ret)}
+              {returnTime ? (
+                <>
+                  {" "}
+                  <span className="tabular-nums text-text-muted">· {returnTime}</span>
+                </>
+              ) : null}
             </p>
             {differentDropoff ? (
               <>
@@ -286,19 +297,18 @@ function BookingRentalSummaryCard({
       )}
       <div className="mt-4 space-y-1 border-t border-border-subtle pt-4 text-sm">
         <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
-        {differentDropoffSurchargeTry > 0 && differentDropoffSurchargeLabel ? (
-          <Row label={differentDropoffSurchargeLabel} value={formatPrice(differentDropoffSurchargeTry)} />
+        {differentDropoff && differentDropoffDetailLines.length > 0 ? (
+          <DifferentDropoffPricingSection
+            formatPrice={formatPrice}
+            surchargeTry={differentDropoffSurchargeTry}
+            lines={differentDropoffDetailLines}
+          />
         ) : null}
         <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
         <div className="flex justify-between border-t border-border-subtle pt-2 font-semibold text-text">
           <span>Toplam tutar</span>
           <span>{formatPrice(total)}</span>
         </div>
-        {totalExtraEur(selectedExtras) > 0 && (
-          <p className="pt-1 text-[10px] leading-relaxed text-text-muted">
-            Ek ücret referans: {totalExtraEur(selectedExtras)} € (gösterimde demo kur ile TRY’ye çevrilir).
-          </p>
-        )}
       </div>
     </div>
   );
@@ -309,33 +319,93 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  /** `null`: ilk yükleme; rent API (handover) yalnızca `true` iken çağrılır. */
-  const [reservationAuthReady, setReservationAuthReady] = useState<boolean | null>(null);
+  /**
+   * Üye değilken misafir JWT olsa bile kapıyı atlamıyoruz (`gate`).
+   * Üye oturumu veya araç sayfasından `guestAck=1` + Bearer ile `ready`.
+   */
+  const [reserveAuthPhase, setReserveAuthPhase] = useState<"loading" | "gate" | "ready">("loading");
+  const admittedViaGuestAckRef = useRef(false);
+  const spRef = useRef(sp);
+  const pathnameRef = useRef(pathname);
+  spRef.current = sp;
+  pathnameRef.current = pathname;
+
+  const patchQuery = useCallback(
+    (mutate: (q: URLSearchParams) => void) => {
+      const q = new URLSearchParams(sp.toString());
+      mutate(q);
+      router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+    },
+    [pathname, router, sp],
+  );
+
+  const guestAckParam = sp.get(RENT_RESERVATION_GUEST_ACK_QUERY);
 
   useEffect(() => {
-    void fetchHasBffSession().then(setReservationAuthReady);
-  }, []);
-
-  const patchQuery = (mutate: (q: URLSearchParams) => void) => {
-    const q = new URLSearchParams(sp.toString());
-    mutate(q);
-    router.replace(`${pathname}?${q.toString()}`, { scroll: false });
-  };
+    let cancelled = false;
+    void (async () => {
+      const isMember = await fetchHasBffMemberSession();
+      if (cancelled) return;
+      if (isMember) {
+        setReserveAuthPhase("ready");
+        return;
+      }
+      if (admittedViaGuestAckRef.current) {
+        setReserveAuthPhase("ready");
+        return;
+      }
+      if (guestAckParam === "1") {
+        if (cancelled) return;
+        admittedViaGuestAckRef.current = true;
+        const pre = spRef.current.get(RENT_GUEST_PREFILL_EMAIL_QUERY)?.trim().toLowerCase() ?? "";
+        if (pre && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pre)) {
+          setEmail(pre);
+        }
+        setReserveAuthPhase("ready");
+        const q = new URLSearchParams(spRef.current.toString());
+        q.delete(RENT_RESERVATION_GUEST_ACK_QUERY);
+        q.delete(RENT_GUEST_PREFILL_EMAIL_QUERY);
+        router.replace(`${pathnameRef.current}?${q.toString()}`, { scroll: false });
+        return;
+      }
+      setReserveAuthPhase("gate");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [guestAckParam, router]);
 
   const pickup = sp.get("alis") || "";
   const ret = sp.get("teslim") || "";
+  const alisSaatRaw = (sp.get("alis_saat") ?? "").trim();
+  const teslimSaatRaw = (sp.get("teslim_saat") ?? "").trim();
+  const alisSaat = HERO_HALF_HOUR_SLOTS.includes(alisSaatRaw) ? alisSaatRaw : HERO_HALF_HOUR_SLOTS[0]!;
+  const teslimSaat = HERO_HALF_HOUR_SLOTS.includes(teslimSaatRaw) ? teslimSaatRaw : HERO_HALF_HOUR_SLOTS[0]!;
+  /** Anasayfa ile aynı yarım saat dilimleri; URL’de yoksa varsayılan yazar. */
+  useEffect(() => {
+    const needA = !HERO_HALF_HOUR_SLOTS.includes((sp.get("alis_saat") ?? "").trim());
+    const needB = !HERO_HALF_HOUR_SLOTS.includes((sp.get("teslim_saat") ?? "").trim());
+    if (!needA && !needB) return;
+    const q = new URLSearchParams(sp.toString());
+    if (needA) q.set("alis_saat", HERO_HALF_HOUR_SLOTS[0]!);
+    if (needB) q.set("teslim_saat", HERO_HALF_HOUR_SLOTS[0]!);
+    router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+  }, [pathname, router, sp]);
+
   const fromApiVehicle = uuidLikeRe.test(vehicle.id);
   const defaultHandoverPickup = vehicle.defaultPickupHandoverLocationId ?? "";
   const defaultHandoverReturn = vehicle.defaultReturnHandoverLocationId ?? "";
-  const locId =
-    sp.get("lokasyon") ||
-    (defaultHandoverPickup || (fromApiVehicle ? "" : pickupLocations[0]!.id));
-  const returnLocId =
-    sp.get("lokasyonTeslim") ||
-    (defaultHandoverReturn || defaultHandoverPickup || locId || (fromApiVehicle ? "" : pickupLocations[0]!.id));
 
-  const [apiPickupOptions, setApiPickupOptions] = useState<{ value: string; label: string; right: string }[]>([]);
-  const [apiReturnOptions, setApiReturnOptions] = useState<{ value: string; label: string; right: string }[]>([]);
+  const [apiPickupOptions, setApiPickupOptions] = useState<{ value: string; label: string; right?: string }[]>([]);
+  const [apiReturnOptions, setApiReturnOptions] = useState<{ value: string; label: string; right?: string }[]>([]);
+  type HandoverQuote = {
+    pickupLegEur: number;
+    returnLegEur: number;
+    routeEur: number;
+    totalEur: number;
+    applied: boolean;
+  };
+  const [handoverQuote, setHandoverQuote] = useState<HandoverQuote | null>(null);
 
   useEffect(() => {
     if (!fromApiVehicle) {
@@ -343,16 +413,17 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       setApiReturnOptions([]);
       return;
     }
-    if (!reservationAuthReady) return;
+    if (reserveAuthPhase !== "ready") return;
     let cancelled = false;
     void (async () => {
       try {
+        const member = await fetchHasBffMemberSession();
         const [p, r] = await Promise.all([
-          fetchHandoverLocationsFromRentApi("PICKUP"),
-          fetchHandoverLocationsFromRentApi("RETURN"),
+          member ? fetchHandoverLocationsFromRentApi("PICKUP") : fetchHandoverLocationsAsRentGuest("PICKUP"),
+          member ? fetchHandoverLocationsFromRentApi("RETURN") : fetchHandoverLocationsAsRentGuest("RETURN"),
         ]);
         if (cancelled) return;
-        const mapRows = (rows: unknown[]) =>
+        const mapPickupRows = (rows: unknown[]) =>
           (Array.isArray(rows) ? rows : [])
             .filter((row) => {
               if (row == null || typeof row !== "object") return false;
@@ -363,12 +434,71 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
               return {
                 value: String(o.id ?? ""),
                 label: String(o.name ?? ""),
-                right: String(o.kind ?? ""),
               };
             })
             .filter((x) => x.value.length > 0);
-        setApiPickupOptions(mapRows(p as unknown[]));
-        setApiReturnOptions(mapRows(r as unknown[]));
+        const mapReturnRows = (rows: unknown[]) =>
+          (Array.isArray(rows) ? rows : [])
+            .filter((row) => {
+              if (row == null || typeof row !== "object") return false;
+              return (row as { active?: boolean }).active !== false;
+            })
+            .map((row) => {
+              const o = row as Record<string, unknown>;
+              const sur = o.surchargeEur;
+              const surNum =
+                typeof sur === "number" && Number.isFinite(sur)
+                  ? sur
+                  : typeof sur === "string"
+                    ? Number(sur)
+                    : NaN;
+              const eur =
+                typeof surNum === "number" && Number.isFinite(surNum) && surNum >= 0 ? surNum : 0;
+              const right = eur > 0 ? `+${eur} €` : undefined;
+              return {
+                value: String(o.id ?? ""),
+                label: String(o.name ?? ""),
+                right,
+              };
+            })
+            .filter((x) => x.value.length > 0);
+        const pickupRows = mapPickupRows(p as unknown[]);
+        const returnRows = mapReturnRows(r as unknown[]);
+
+        type HandoverSelectOpt = { value: string; label: string; right?: string };
+        let pickupOpts: HandoverSelectOpt[] = pickupRows;
+        let returnOpts: HandoverSelectOpt[] = returnRows;
+
+        const ph = vehicle.pickupHandoverForBooking;
+        if (ph?.id) {
+          const eur = ph.surchargeEur;
+          pickupOpts = [
+            {
+              value: ph.id,
+              label: ph.name || ph.id,
+              right: typeof eur === "number" && eur > 0 ? `+${eur} €` : undefined,
+            },
+          ];
+        }
+
+        const rh = vehicle.returnHandoversForBooking;
+        if (rh && rh.length > 0) {
+          const byId = new Map(returnRows.map((o) => [o.value, o]));
+          returnOpts = rh.map((h) => {
+            const merged = byId.get(h.id);
+            const eur = h.surchargeEur;
+            const rightFromHandover =
+              typeof eur === "number" && eur > 0 ? `+${eur} €` : merged?.right;
+            return {
+              value: h.id,
+              label: h.name || h.id,
+              right: rightFromHandover,
+            };
+          });
+        }
+
+        setApiPickupOptions(pickupOpts);
+        setApiReturnOptions(returnOpts);
       } catch {
         if (!cancelled) {
           setApiPickupOptions([]);
@@ -379,7 +509,50 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     return () => {
       cancelled = true;
     };
-  }, [fromApiVehicle, reservationAuthReady]);
+  }, [fromApiVehicle, reserveAuthPhase, vehicle.pickupHandoverForBooking, vehicle.returnHandoversForBooking]);
+
+  const firstPickupHandoverId = useMemo(
+    () => apiPickupOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "",
+    [apiPickupOptions],
+  );
+  const firstReturnHandoverId = useMemo(
+    () => apiReturnOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "",
+    [apiReturnOptions],
+  );
+
+  const rawLokasyon = (sp.get("lokasyon") ?? "").trim();
+  const rawLokasyonTeslim = (sp.get("lokasyonTeslim") ?? "").trim();
+
+  /** API aracı: URL’deki demo `lokasyon` slug’ı handover UUID değil; önce gerçek UUID (araç varsayılanı / API listesi). */
+  const locId = fromApiVehicle
+    ? uuidLikeRe.test(rawLokasyon)
+      ? rawLokasyon
+      : uuidLikeRe.test(defaultHandoverPickup)
+        ? defaultHandoverPickup
+        : firstPickupHandoverId
+    : rawLokasyon || defaultHandoverPickup || pickupLocations[0]!.id;
+
+  const returnLocId = fromApiVehicle
+    ? uuidLikeRe.test(rawLokasyonTeslim)
+      ? rawLokasyonTeslim
+      : uuidLikeRe.test(defaultHandoverReturn)
+        ? defaultHandoverReturn
+        : uuidLikeRe.test(defaultHandoverPickup)
+          ? defaultHandoverPickup
+          : locId || firstReturnHandoverId || firstPickupHandoverId
+    : rawLokasyonTeslim || (defaultHandoverReturn || defaultHandoverPickup || locId || pickupLocations[0]!.id);
+
+  useEffect(() => {
+    if (!fromApiVehicle) return;
+    const badPickup = rawLokasyon.length > 0 && !uuidLikeRe.test(rawLokasyon);
+    const badReturn = rawLokasyonTeslim.length > 0 && !uuidLikeRe.test(rawLokasyonTeslim);
+    if (!badPickup && !badReturn) return;
+    if (!uuidLikeRe.test(locId)) return;
+    patchQuery((q) => {
+      if (badPickup) q.set("lokasyon", locId);
+      if (badReturn && uuidLikeRe.test(returnLocId)) q.set("lokasyonTeslim", returnLocId);
+    });
+  }, [fromApiVehicle, rawLokasyon, rawLokasyonTeslim, locId, returnLocId]);
 
   const handoverLabel = useCallback(
     (id: string) => {
@@ -417,7 +590,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       ? ret
       : toIsoDate(addDays(parseIsoDate(pickupForCalendar)!, 3));
 
-  const garageText = vehicle.garageLocation ?? defaultGarageCopy;
+  const bookingCalendarBlocked = useMemo(() => blockedSetForVehicle(vehicle.id), [vehicle.id]);
+  const bookingCalendarMaxIso = useMemo(() => toIsoDate(addDays(new Date(), 365)), []);
+
   const pickupLocationSelectOptions = useMemo(() => {
     if (fromApiVehicle && apiPickupOptions.length > 0) return apiPickupOptions;
     return pickupLocations.map((l) => ({ value: l.id, label: l.label, right: l.countryCode }));
@@ -434,27 +609,150 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   );
   const differentDropoff = Boolean(locId && returnLocId && locId !== returnLocId);
 
-  const differentDropoffSurchargeTry =
-    differentDropoff && crossBorderFee > 0
-      ? crossBorderFee
-      : differentDropoff
-        ? DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY
-        : 0;
+  /** Araça özel handover listesi: URL’deki UUID izin verilen kümede değilse geçerli varsayılana çekilir. */
+  useEffect(() => {
+    if (!fromApiVehicle) return;
+    if (pickupLocationSelectOptions.length === 0 || returnLocationSelectOptions.length === 0) return;
 
-  const differentDropoffSurchargeLabel =
-    differentDropoff && differentDropoffSurchargeTry > 0
-      ? crossBorderFee > 0
-        ? "Farklı bırakış (ülke farkı)"
-        : "Farklı bırakış (örn. 35$)"
-      : null;
+    const pickupAllowed = new Set(pickupLocationSelectOptions.map((o) => o.value));
+    const returnAllowed = new Set(returnLocationSelectOptions.map((o) => o.value));
+
+    const fallbackPickup =
+      pickupLocationSelectOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "";
+    const fallbackReturn =
+      returnLocationSelectOptions.find((o) => o.value !== fallbackPickup && uuidLikeRe.test(o.value))?.value ??
+      returnLocationSelectOptions.find((o) => uuidLikeRe.test(o.value))?.value ??
+      "";
+
+    const pBad = uuidLikeRe.test(rawLokasyon) && !pickupAllowed.has(rawLokasyon);
+    const rBad = uuidLikeRe.test(rawLokasyonTeslim) && !returnAllowed.has(rawLokasyonTeslim);
+    if (!pBad && !rBad) return;
+
+    patchQuery((q) => {
+      if (pBad && fallbackPickup) q.set("lokasyon", fallbackPickup);
+      if (rBad && fallbackReturn) q.set("lokasyonTeslim", fallbackReturn);
+    });
+  }, [
+    fromApiVehicle,
+    rawLokasyon,
+    rawLokasyonTeslim,
+    pickupLocationSelectOptions,
+    returnLocationSelectOptions,
+    patchQuery,
+  ]);
+
+  useEffect(() => {
+    if (!fromApiVehicle || reserveAuthPhase !== "ready") {
+      setHandoverQuote(null);
+      return;
+    }
+    if (!differentDropoff || !uuidLikeRe.test(locId) || !uuidLikeRe.test(returnLocId)) {
+      setHandoverQuote(null);
+      return;
+    }
+    let cancelled = false;
+    setHandoverQuote(null);
+    void (async () => {
+      const num = (u: unknown) => {
+        if (typeof u === "number" && Number.isFinite(u)) return u;
+        if (typeof u === "string") {
+          const x = Number(u);
+          return Number.isFinite(x) ? x : 0;
+        }
+        return 0;
+      };
+      try {
+        const member = await fetchHasBffMemberSession();
+        const raw = member
+          ? await fetchHandoverPricingQuoteFromRentApi(locId, returnLocId)
+          : await fetchHandoverPricingQuoteAsRentGuest(locId, returnLocId);
+        const ru = raw as Record<string, unknown>;
+        const q: HandoverQuote = {
+          pickupLegEur: num(ru.pickupLegEur),
+          returnLegEur: num(ru.returnLegEur),
+          routeEur: num(ru.routeEur),
+          totalEur: num(ru.totalEur),
+          applied: Boolean(ru.applied),
+        };
+        if (!cancelled) setHandoverQuote(q);
+      } catch {
+        if (!cancelled) setHandoverQuote(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fromApiVehicle, reserveAuthPhase, differentDropoff, locId, returnLocId]);
+
+  const handoverSurchargeLines = useMemo(() => {
+    if (!fromApiVehicle || !differentDropoff || !handoverQuote) return [];
+    const lines: { key: string; label: string; amountTry: number }[] = [];
+    if (handoverQuote.pickupLegEur > 0) {
+      const amountTry = eurToTry(handoverQuote.pickupLegEur);
+      if (amountTry > 0) lines.push({ key: "ho-pu", label: "Alış noktası ek ücreti", amountTry });
+    }
+    if (handoverQuote.returnLegEur > 0) {
+      const amountTry = eurToTry(handoverQuote.returnLegEur);
+      if (amountTry > 0) lines.push({ key: "ho-re", label: "Teslim noktası ek ücreti", amountTry });
+    }
+    if (handoverQuote.routeEur > 0) {
+      const amountTry = eurToTry(handoverQuote.routeEur);
+      if (amountTry > 0) lines.push({ key: "ho-rt", label: "Güzergâh (ülke / bölge geçişi)", amountTry });
+    }
+    return lines;
+  }, [fromApiVehicle, differentDropoff, handoverQuote]);
+
+  const differentDropoffSurchargeTry = useMemo(() => {
+    if (!differentDropoff) return 0;
+    if (fromApiVehicle) {
+      if (!handoverQuote) return 0;
+      return eurToTry(handoverQuote.totalEur);
+    }
+    return crossBorderFee > 0 ? crossBorderFee : DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY;
+  }, [differentDropoff, fromApiVehicle, handoverQuote, crossBorderFee]);
 
   const pickupSummaryLabel = pickupLocation?.label?.trim() || locId;
   const returnSummaryLabel = returnLocation?.label?.trim() || returnLocId;
 
+  const differentDropoffDetailLines = useMemo((): ExtraFeeLineItem[] => {
+    if (!differentDropoff) return [];
+    const loc = returnSummaryLabel.trim();
+    if (!loc) return [];
+    if (fromApiVehicle) {
+      if (!handoverQuote) return [];
+      const out: ExtraFeeLineItem[] = [
+        { key: "dd-ret", label: loc, amountTry: eurToTry(handoverQuote.returnLegEur) },
+      ];
+      if (handoverQuote.pickupLegEur > 0) {
+        out.push({
+          key: "dd-pu",
+          label: "Alış noktası ek ücreti",
+          amountTry: eurToTry(handoverQuote.pickupLegEur),
+        });
+      }
+      if (handoverQuote.routeEur > 0) {
+        out.push({
+          key: "dd-rt",
+          label: "Güzergâh (ülke / bölge geçişi)",
+          amountTry: eurToTry(handoverQuote.routeEur),
+        });
+      }
+      return out;
+    }
+    if (differentDropoffSurchargeTry > 0) {
+      return [{ key: "dd-demo", label: loc, amountTry: differentDropoffSurchargeTry }];
+    }
+    return [];
+  }, [differentDropoff, returnSummaryLabel, fromApiVehicle, handoverQuote, differentDropoffSurchargeTry]);
+
   const [step, setStep] = useState(1);
   /** Ulaşılan en ileri adım; geri gidildikten sonra üst sekmeden tekrar seçilebilmesi için. */
   const [maxStepReached, setMaxStepReached] = useState(1);
-  const [selectedExtras, setSelectedExtras] = useState<Set<ExtraServiceId>>(() => new Set());
+  const [reservationExtraTemplates, setReservationExtraTemplates] = useState<ReservationExtraOptionTemplateDto[] | null>(
+    null,
+  );
+  const [reservationExtraLoadError, setReservationExtraLoadError] = useState<string | null>(null);
+  const [selectedReservationExtraIds, setSelectedReservationExtraIds] = useState<Set<string>>(() => new Set());
   const [selectedVehicleOptionIds, setSelectedVehicleOptionIds] = useState<Set<string>>(() => new Set());
   const toggleVehicleOption = useCallback((id: string) => {
     setSelectedVehicleOptionIds((prev) => {
@@ -464,8 +762,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       return next;
     });
   }, []);
-  const toggleExtra = useCallback((id: ExtraServiceId) => {
-    setSelectedExtras((prev) => {
+  const toggleReservationExtra = useCallback((id: string) => {
+    setSelectedReservationExtraIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -604,7 +902,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const has = await fetchHasBffSession();
+      const has = await fetchHasBffMemberSession();
       if (cancelled || !has) return;
       const profile = getStoredAuthUser();
       if (!profile) return;
@@ -616,6 +914,28 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       cancelled = true;
     };
   }, [email, fullName, phone]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const member = await fetchHasBffMemberSession();
+        const rows = member
+          ? await fetchReservationExtraOptionsFromRentApi()
+          : await fetchReservationExtraOptionsAsRentGuest();
+        if (cancelled) return;
+        setReservationExtraTemplates(Array.isArray(rows) ? rows : []);
+        setReservationExtraLoadError(null);
+      } catch (e) {
+        if (cancelled) return;
+        setReservationExtraTemplates([]);
+        setReservationExtraLoadError(e instanceof Error ? e.message : "Ek hizmet listesi yüklenemedi.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (step >= 1 && step <= 4) {
@@ -639,18 +959,43 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     return s;
   }, [vehicle.rentOptionDefinitions, selectedVehicleOptionIds]);
 
-  const extraFeeTry = totalExtraEur(selectedExtras) * EXTRA_EUR_TO_TRY_DEMO + apiOptionsFeeTry;
+  const reservationCatalogFeeTry = useMemo(() => {
+    const rows = reservationExtraTemplates;
+    if (!rows?.length) return 0;
+    let s = 0;
+    for (const id of selectedReservationExtraIds) {
+      const t = rows.find((x) => x.id === id);
+      if (t) s += Number(t.price) || 0;
+    }
+    return s;
+  }, [reservationExtraTemplates, selectedReservationExtraIds]);
+
+  const needsCoDriverForm = useMemo(() => {
+    const rows = reservationExtraTemplates;
+    if (!rows?.length) return false;
+    for (const id of selectedReservationExtraIds) {
+      const t = rows.find((x) => x.id === id);
+      if (t?.requiresCoDriverDetails) return true;
+    }
+    return false;
+  }, [reservationExtraTemplates, selectedReservationExtraIds]);
+
+  const extraFeeTry = reservationCatalogFeeTry + apiOptionsFeeTry;
   const total = rentalSub + extraFeeTry;
 
   const extraFeeLineItems = useMemo((): ExtraFeeLineItem[] => {
     const lines: ExtraFeeLineItem[] = [];
-    for (const id of EXTRA_SERVICE_ORDER) {
-      if (selectedExtras.has(id)) {
-        lines.push({
-          key: `extra-${id}`,
-          label: extraServiceShortLabel(id),
-          amountTry: eurForExtraService(id) * EXTRA_EUR_TO_TRY_DEMO,
-        });
+    const rows = reservationExtraTemplates;
+    if (rows?.length) {
+      for (const optId of selectedReservationExtraIds) {
+        const t = rows.find((x) => x.id === optId);
+        if (t) {
+          lines.push({
+            key: `res-extra-${optId}`,
+            label: t.title,
+            amountTry: Number(t.price) || 0,
+          });
+        }
       }
     }
     const defs = vehicle.rentOptionDefinitions;
@@ -667,7 +1012,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       }
     }
     return lines;
-  }, [selectedExtras, selectedVehicleOptionIds, vehicle.rentOptionDefinitions]);
+  }, [reservationExtraTemplates, selectedReservationExtraIds, selectedVehicleOptionIds, vehicle.rentOptionDefinitions]);
 
   const apiVehicleOptionsSummary = useMemo(() => {
     const defs = vehicle.rentOptionDefinitions;
@@ -678,7 +1023,16 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       .join(" · ");
   }, [vehicle.rentOptionDefinitions, selectedVehicleOptionIds]);
 
-  const combinedExtrasSummaryParts = [extrasSummarySentence(selectedExtras), apiVehicleOptionsSummary].filter(Boolean);
+  const reservationExtrasSummary = useMemo(() => {
+    const rows = reservationExtraTemplates;
+    if (!rows?.length || selectedReservationExtraIds.size === 0) return null;
+    return [...selectedReservationExtraIds]
+      .map((id) => rows.find((r) => r.id === id)?.title)
+      .filter(Boolean)
+      .join(" · ");
+  }, [reservationExtraTemplates, selectedReservationExtraIds]);
+
+  const combinedExtrasSummaryParts = [reservationExtrasSummary, apiVehicleOptionsSummary].filter(Boolean);
   const combinedExtrasSummary =
     combinedExtrasSummaryParts.length > 0 ? combinedExtrasSummaryParts.join(" · ") : null;
 
@@ -703,7 +1057,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
 
   const validateStep3Extras = () => {
     const e: Record<string, string> = {};
-    if (selectedExtras.has("extra_driver")) {
+    if (needsCoDriverForm) {
       if (coDriverFullName.trim().length < 4) e.coDriverFullName = "Ek şöför adı soyadı en az 4 karakter olmalıdır.";
       if (!isPhoneTr(coDriverPhone)) e.coDriverPhone = "Ek şöför için geçerli bir cep telefonu girin.";
       if (!coDriverBirthDate) e.coDriverBirthDate = "Ek şöför doğum tarihi zorunludur.";
@@ -751,13 +1105,28 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       });
       return false;
     }
+    if (
+      !HERO_HALF_HOUR_SLOTS.includes((sp.get("alis_saat") ?? "").trim()) ||
+      !HERO_HALF_HOUR_SLOTS.includes((sp.get("teslim_saat") ?? "").trim())
+    ) {
+      setErrors({
+        dates: "Alış ve teslim saatlerini takvim üzerindeki listelerden seçin.",
+      });
+      return false;
+    }
     if (fromApiVehicle) {
       if (!locId.trim() || !uuidLikeRe.test(locId)) {
-        setErrors({ dates: "API aracı için geçerli bir alış noktası (UUID) seçin." });
+        setErrors({
+          dates:
+            "Bu araç için alış noktası (ofis) tanımlı değil veya liste yüklenemedi. Sayfayı yenileyin; sorun sürerse araç kaydında varsayılan alış noktası ekleyin.",
+        });
         return false;
       }
       if (!returnLocId.trim() || !uuidLikeRe.test(returnLocId)) {
-        setErrors({ dates: "API aracı için geçerli bir teslim noktası (UUID) seçin." });
+        setErrors({
+          dates:
+            "Teslim noktası tanımlı değil veya liste yüklenemedi. Sayfayı yenileyin veya farklı teslim seçeneklerini kontrol edin.",
+        });
         return false;
       }
     }
@@ -778,9 +1147,16 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
 
   const buildExtraNoteBlock = () => {
     const lines: string[] = [];
-    if (selectedExtras.has("baby_seat")) lines.push("Ek hizmet: Bebek koltuğu — 10 €");
-    if (selectedExtras.has("extra_driver")) {
-      lines.push("Ek hizmet: Ek şöför — 10 €");
+    const rows = reservationExtraTemplates;
+    if (rows?.length) {
+      for (const id of selectedReservationExtraIds) {
+        const t = rows.find((x) => x.id === id);
+        if (t) {
+          lines.push(`Ek hizmet: ${t.title} — ${Number(t.price) || 0} (şablon: ${t.code})`);
+        }
+      }
+    }
+    if (needsCoDriverForm) {
       lines.push(
         [
           "Ek şöför bilgileri:",
@@ -791,14 +1167,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           `Pasaport no: ${coDriverPassportNo.trim()}`,
           "Ehliyet ve pasaport görselleri talep kaydına eklendi.",
         ].join(" · "),
-      );
-    }
-    if (selectedExtras.has("green_insurance_me")) {
-      lines.push("Ek hizmet: Yeşil sigorta (Karadağ) — 20 €");
-    }
-    if (selectedExtras.has("green_insurance_balkan")) {
-      lines.push(
-        "Ek hizmet: Yeşil sigorta (Arnavutluk · Kosova · Karadağ · Kuzey Makedonya) — 40 €",
       );
     }
     const defs = vehicle.rentOptionDefinitions;
@@ -834,7 +1202,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         ]);
 
         let additionalDrivers: CreateRentalRequestFormPayload["additionalDrivers"];
-        if (selectedExtras.has("extra_driver") && coDriverLicenseScan && coDriverPassportScan) {
+        if (needsCoDriverForm && coDriverLicenseScan && coDriverPassportScan) {
           const [coDriverLicenseImageDataUrl, coDriverPassportImageDataUrl] = await Promise.all([
             fileToDataUrl(coDriverLicenseScan),
             fileToDataUrl(coDriverPassportScan),
@@ -851,10 +1219,27 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           ];
         }
 
-        const apiOpts =
+        const vehicleOpts =
           selectedVehicleOptionIds.size > 0
             ? [...selectedVehicleOptionIds].map((id) => ({ vehicleOptionDefinitionId: id }))
-            : undefined;
+            : [];
+        const reservationOpts =
+          selectedReservationExtraIds.size > 0
+            ? [...selectedReservationExtraIds].map((id) => ({ reservationExtraTemplateId: id }))
+            : [];
+        const mergedOpts = [...vehicleOpts, ...reservationOpts];
+        const apiOpts = mergedOpts.length > 0 ? mergedOpts : undefined;
+
+        const member = await fetchHasBffMemberSession();
+
+        const sa = (sp.get("alis_saat") ?? "").trim();
+        const st = (sp.get("teslim_saat") ?? "").trim();
+        const timeNote =
+          HERO_HALF_HOUR_SLOTS.includes(sa) && HERO_HALF_HOUR_SLOTS.includes(st)
+            ? `Alış saati: ${sa} · Teslim saati: ${st}`
+            : "";
+        const baseNote = buildExtraNoteBlock().trim();
+        const combinedNote = [timeNote, baseNote].filter(Boolean).join("\n");
 
         const payload: CreateRentalRequestFormPayload = {
           vehicleId: uuidLikeRe.test(vehicle.id) ? vehicle.id : undefined,
@@ -863,7 +1248,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           pickupHandoverLocationId: uuidLikeRe.test(locId) ? locId : undefined,
           returnHandoverLocationId: uuidLikeRe.test(returnLocId) ? returnLocId : undefined,
           outsideCountryTravel: planVehicleAbroad,
-          note: buildExtraNoteBlock().trim() || undefined,
+          note: combinedNote || undefined,
           options: apiOpts,
           customer: {
             fullName: fullName.trim(),
@@ -878,7 +1263,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           additionalDrivers,
         };
 
-        const data = await createRentalRequestOnRentApi(payload);
+        const data = member
+          ? await createRentalRequestOnRentApi(payload)
+          : await createRentalRequestAsRentGuest(payload);
         const refRaw = (data as { referenceNo?: unknown } | null)?.referenceNo;
         const ref = typeof refRaw === "string" && refRaw.trim().length > 0
           ? refRaw
@@ -919,7 +1306,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     }
   };
 
-  if (reservationAuthReady === null) {
+  if (reserveAuthPhase === "loading") {
     return (
       <div className="mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6">
         <p className="py-24 text-center text-sm text-text-muted">Oturum kontrol ediliyor…</p>
@@ -927,7 +1314,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     );
   }
 
-  if (!reservationAuthReady) {
+  if (reserveAuthPhase === "gate") {
     const nextHref = `${pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
     return (
       <div className="mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6">
@@ -936,7 +1323,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
           nextLoginHref={nextHref}
           onAuthenticated={(guestEmail) => {
             setEmail(guestEmail);
-            void fetchHasBffSession().then(setReservationAuthReady);
+            admittedViaGuestAckRef.current = true;
+            setReserveAuthPhase("ready");
           }}
         />
       </div>
@@ -1053,8 +1441,14 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                       onChange={handleReservationDifferentDropoff}
                       disabled={!canChooseDifferentReturn}
                       className="mt-1"
-                      parenthetical={canChooseDifferentReturn ? "35$" : undefined}
+                      parenthetical={canChooseDifferentReturn && !fromApiVehicle ? "örn. 35$" : undefined}
                     />
+                    {fromApiVehicle && canChooseDifferentReturn && apiReturnOptions.length > 0 && !differentDropoff ? (
+                      <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
+                        {apiReturnOptions.length} teslim ofisi sunucudan yüklendi. Listeyi görmek için «Aracı farklı bir
+                        yere bırakacağım» seçeneğini açın; açık değilse teslim, alış ile aynı kalır.
+                      </p>
+                    ) : null}
                     {!canChooseDifferentReturn ? (
                       <p className="text-[11px] leading-relaxed text-text-muted">
                         Bu araç için yalnızca tek teslim noktası tanımlı; teslim yeri alış ile aynı kalır.
@@ -1079,7 +1473,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                         />
                       </label>
                     ) : null}
-                    {crossBorderFee > 0 && (
+                    {!fromApiVehicle && crossBorderFee > 0 && (
                       <p className="text-[11px] leading-relaxed text-amber-200/90">
                         Farklı ülke teslimi: tahmini araç bedeline{" "}
                         <span className="font-medium text-text">{formatPrice(crossBorderFee)}</span>{" "}
@@ -1102,15 +1496,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-border-subtle bg-bg-raised/40 px-3 py-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Teslim noktası</p>
-                    <p className="mt-1 flex items-start gap-2.5 text-sm leading-relaxed text-text">
-                      <span className="sr-only">Araç konumu</span>
-                      <LocationPinIcon className="mt-0.5 size-[1.125rem] shrink-0 text-accent" />
-                      <span className="min-w-0 flex-1 text-text-muted">{garageText}</span>
-                    </p>
-                  </div>
-
                   {errors.dates && (
                     <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-text">
                       {errors.dates}
@@ -1126,16 +1511,20 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                         exit={{ opacity: 0, y: -8 }}
                         transition={{ duration: 0.3, ease }}
                       >
-                        <RentalAvailabilityCalendarPanel
-                          vehicleId={vehicle.id}
-                          pickup={pickupForCalendar}
+                        <HeroRentalRangeDatePickers
+                          layout="inline"
+                          inlineMonthCount={1}
+                          minDate={todayIso()}
+                          maxDate={bookingCalendarMaxIso}
+                          pickupDate={pickupForCalendar}
                           returnDate={returnForCalendar}
-                          syncToken={sp.toString()}
-                          footerMode="inline"
-                          fullWidth
-                          selectionOnly
-                          showResetButton={false}
-                          onCommit={(p, r) => {
+                          blockedDates={bookingCalendarBlocked}
+                          onValidateRange={(p, r) =>
+                            compareIso(r, p) <= 0
+                              ? "Teslim günü alıştan en az 1 gün sonra olmalı."
+                              : null
+                          }
+                          onRangeCommit={(p, r) => {
                             patchQuery((q) => {
                               q.set("alis", p);
                               q.set("teslim", r);
@@ -1148,7 +1537,15 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                               if (!q.get("lokasyonTeslim")) q.set("lokasyonTeslim", q.get("lokasyon")!);
                             });
                           }}
-                          title="Takvim"
+                          pickTime={alisSaat}
+                          returnTime={teslimSaat}
+                          onPickTime={(t) => {
+                            patchQuery((q) => q.set("alis_saat", t));
+                          }}
+                          onReturnTime={(t) => {
+                            patchQuery((q) => q.set("teslim_saat", t));
+                          }}
+                          inlineTitle="Takvim"
                         />
                       </motion.div>
                     )}
@@ -1182,9 +1579,11 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   selectedVehicleOptionIds={selectedVehicleOptionIds}
                   toggleVehicleOption={toggleVehicleOption}
                   formatVehicleOptionTry={(amount) => formatPrice(amount)}
-                  selectedExtras={selectedExtras}
-                  toggleExtra={toggleExtra}
-                  formatExtraTry={(eur) => formatPrice(eur * EXTRA_EUR_TO_TRY_DEMO)}
+                  reservationExtraTemplates={reservationExtraTemplates}
+                  reservationExtraLoadError={reservationExtraLoadError}
+                  selectedReservationExtraIds={selectedReservationExtraIds}
+                  toggleReservationExtra={toggleReservationExtra}
+                  formatReservationExtraTry={(amountTry) => formatPrice(amountTry)}
                   coDriverFullName={coDriverFullName}
                   setCoDriverFullName={setCoDriverFullName}
                   coDriverPhone={coDriverPhone}
@@ -1215,7 +1614,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   abroadUsageFee={abroadUsageFee}
                   vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
                   differentDropoffSurchargeTry={differentDropoffSurchargeTry}
-                  differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
+                  differentDropoffDetailLines={differentDropoffDetailLines}
+                  handoverSurchargeLines={handoverSurchargeLines}
                   extraFeeTry={extraFeeTry}
                   extraFeeLineItems={extraFeeLineItems}
                   extraSummary={combinedExtrasSummary}
@@ -1225,13 +1625,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   phone={phone}
                   licenseScanName={licenseScan?.name}
                   passportScanName={passportScan?.name}
-                  coDriverFullName={selectedExtras.has("extra_driver") ? coDriverFullName : undefined}
-                  coDriverLicenseScanName={
-                    selectedExtras.has("extra_driver") ? coDriverLicenseScan?.name : undefined
-                  }
-                  coDriverPassportScanName={
-                    selectedExtras.has("extra_driver") ? coDriverPassportScan?.name : undefined
-                  }
+                  coDriverFullName={needsCoDriverForm ? coDriverFullName : undefined}
+                  coDriverLicenseScanName={needsCoDriverForm ? coDriverLicenseScan?.name : undefined}
+                  coDriverPassportScanName={needsCoDriverForm ? coDriverPassportScan?.name : undefined}
                   formatPrice={formatPrice}
                   terms={terms}
                   setTerms={(v) => {
@@ -1281,14 +1677,15 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
               formatPrice={formatPrice}
               vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
               differentDropoffSurchargeTry={differentDropoffSurchargeTry}
-              differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
+              differentDropoffDetailLines={differentDropoffDetailLines}
               extraFeeTry={extraFeeTry}
               extraFeeLineItems={extraFeeLineItems}
               total={total}
-              selectedExtras={selectedExtras}
               differentDropoff={differentDropoff}
               pickupLocationLabel={pickupSummaryLabel}
               returnLocationLabel={returnSummaryLabel}
+              pickupTime={alisSaat}
+              returnTime={teslimSaat}
             />
           </motion.div>
         </aside>
@@ -1388,14 +1785,15 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                       formatPrice={formatPrice}
                       vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
                       differentDropoffSurchargeTry={differentDropoffSurchargeTry}
-                      differentDropoffSurchargeLabel={differentDropoffSurchargeLabel}
+                      differentDropoffDetailLines={differentDropoffDetailLines}
                       extraFeeTry={extraFeeTry}
                       extraFeeLineItems={extraFeeLineItems}
                       total={total}
-                      selectedExtras={selectedExtras}
                       differentDropoff={differentDropoff}
                       pickupLocationLabel={pickupSummaryLabel}
                       returnLocationLabel={returnSummaryLabel}
+                      pickupTime={alisSaat}
+                      returnTime={teslimSaat}
                     />
                     {step === 4 && (
                       <div className="mt-4 space-y-4 border-t border-border-subtle pt-4">
@@ -1460,9 +1858,11 @@ function StepExtras({
   selectedVehicleOptionIds,
   toggleVehicleOption,
   formatVehicleOptionTry,
-  selectedExtras,
-  toggleExtra,
-  formatExtraTry,
+  reservationExtraTemplates,
+  reservationExtraLoadError,
+  selectedReservationExtraIds,
+  toggleReservationExtra,
+  formatReservationExtraTry,
   coDriverFullName,
   setCoDriverFullName,
   coDriverPhone,
@@ -1483,10 +1883,11 @@ function StepExtras({
   selectedVehicleOptionIds: ReadonlySet<string>;
   toggleVehicleOption: (id: string) => void;
   formatVehicleOptionTry: (amountTry: number) => string;
-  selectedExtras: ReadonlySet<ExtraServiceId>;
-  toggleExtra: (id: ExtraServiceId) => void;
-  /** € tutarını TRY gösterimine çevirir (demo kur). */
-  formatExtraTry: (eur: number) => string;
+  reservationExtraTemplates: ReservationExtraOptionTemplateDto[] | null;
+  reservationExtraLoadError: string | null;
+  selectedReservationExtraIds: ReadonlySet<string>;
+  toggleReservationExtra: (id: string) => void;
+  formatReservationExtraTry: (amountTry: number) => string;
   coDriverFullName: string;
   setCoDriverFullName: (v: string) => void;
   coDriverPhone: string;
@@ -1510,38 +1911,6 @@ function StepExtras({
   const coLicenseCameraRef = useRef<HTMLInputElement>(null);
   const coPassportGalleryRef = useRef<HTMLInputElement>(null);
   const coPassportCameraRef = useRef<HTMLInputElement>(null);
-
-  const cards: {
-    id: ExtraServiceId;
-    title: string;
-    subtitle: string;
-    eurLabel: string;
-  }[] = [
-    {
-      id: "baby_seat",
-      title: "Bebek koltuğu",
-      subtitle: "Çocuk güvenliği için montajlı bebek koltuğu.",
-      eurLabel: "10 €",
-    },
-    {
-      id: "extra_driver",
-      title: "Ek şöför",
-      subtitle: "İkinci sürücü; ehliyet/pasaport numarası ve net görseller zorunludur.",
-      eurLabel: "10 €",
-    },
-    {
-      id: "green_insurance_me",
-      title: "Yeşil sigorta — Karadağ",
-      subtitle: "Karadağ sınır geçişleri için yeşil sigorta.",
-      eurLabel: "20 €",
-    },
-    {
-      id: "green_insurance_balkan",
-      title: "Yeşil sigorta — bölge paketi",
-      subtitle: "Arnavutluk, Kosova, Karadağ ve Kuzey Makedonya için geçerli yeşil sigorta.",
-      eurLabel: "40 €",
-    },
-  ];
 
   const coDriverForm = (
         <div
@@ -1687,17 +2056,76 @@ function StepExtras({
         </div>
   );
 
+  const catalogRows =
+    reservationExtraTemplates == null
+      ? null
+      : [...reservationExtraTemplates].sort((a, b) => a.lineOrder - b.lineOrder || a.title.localeCompare(b.title));
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-text">Ek hizmetler</h2>
       <p className="mt-2 text-sm text-text-muted">
-        İhtiyacınız olan ekleri işaretleyin; birden fazla seçebilirsiniz. Fiyatlar euro cinsindendir;
-        özet panelinde seçtiğiniz para birimine göre tahmini karşılığı gösterilir.
+        Genel ek hizmetler sunucu kataloğundan gelir; araca özel ücretli seçenekler ayrı bloktadır. Birden fazla
+        seçebilirsiniz.
       </p>
+      <div className="mt-8 space-y-3 rounded-xl border border-border-subtle bg-bg-raised/30 p-4 dark:bg-bg-deep/25">
+        <h3 className="text-sm font-semibold text-text">Rezervasyon ek hizmetleri</h3>
+        {reservationExtraTemplates == null ? (
+          <p className="text-[13px] text-text-muted">Ek hizmet listesi yükleniyor…</p>
+        ) : reservationExtraLoadError ? (
+          <p className="text-[13px] text-amber-300">{reservationExtraLoadError}</p>
+        ) : !catalogRows?.length ? (
+          <p className="text-[13px] text-text-muted">Şu an listelenecek ek hizmet yok.</p>
+        ) : (
+          <div className="space-y-2">
+            {catalogRows.map((t) => {
+              const checked = selectedReservationExtraIds.has(t.id);
+              const attachFormBelow = t.requiresCoDriverDetails && checked;
+              const rowId = `res-extra-${t.id}`;
+              return (
+                <Fragment key={t.id}>
+                  <label
+                    htmlFor={rowId}
+                    className={`flex w-full cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors ${
+                      checked
+                        ? attachFormBelow
+                          ? "rounded-b-none border-b-0 border-accent/40 bg-accent/10 ring-1 ring-accent/30"
+                          : "border-accent/40 bg-accent/10 ring-1 ring-accent/30"
+                        : "border-border-subtle bg-bg-card/40 hover:border-border-subtle hover:bg-bg-raised/40"
+                    }`}
+                  >
+                    <input
+                      id={rowId}
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleReservationExtra(t.id)}
+                      className="mt-1 size-4 shrink-0 accent-accent"
+                    />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-text">{t.title}</p>
+                        {t.description ? (
+                          <p className="mt-1 text-[12px] leading-relaxed text-text-muted">{t.description}</p>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 rounded-md border border-border-subtle bg-bg-raised/60 px-2 py-1 text-xs font-semibold tabular-nums text-accent">
+                        +{formatReservationExtraTry(Number(t.price) || 0)}
+                      </span>
+                    </div>
+                  </label>
+                  {attachFormBelow ? coDriverForm : null}
+                </Fragment>
+              );
+            })}
+          </div>
+        )}
+      </div>
       {rentVehicleOptions && rentVehicleOptions.length > 0 ? (
         <div className="mt-8 space-y-3 rounded-xl border border-accent/25 bg-accent/5 p-4">
           <h3 className="text-sm font-semibold text-text">Bu araca özel seçenekler</h3>
-          <p className="text-[12px] text-text-muted">Sunucudaki araç tanımından gelir; tutarlar günlük fiyat ile aynı para birimindedir.</p>
+          <p className="text-[12px] text-text-muted">
+            Sunucudaki araç tanımından gelir; tutarlar günlük kira ile aynı para birimindedir.
+          </p>
           <div className="space-y-2">
             {rentVehicleOptions.map((opt) => {
               const checked = selectedVehicleOptionIds.has(opt.id);
@@ -1736,48 +2164,6 @@ function StepExtras({
           </div>
         </div>
       ) : null}
-      <div className="mt-6 space-y-3">
-        {cards.map((c) => {
-          const checked = selectedExtras.has(c.id);
-          const attachFormBelow = c.id === "extra_driver" && checked;
-          const rowId = `extra-svc-${c.id}`;
-          return (
-            <Fragment key={c.id}>
-              <label
-                htmlFor={rowId}
-                className={`flex w-full cursor-pointer items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors ${
-                  checked
-                    ? attachFormBelow
-                      ? "rounded-b-none border-b-0 border-accent/40 bg-accent/10 ring-1 ring-accent/30"
-                      : "border-accent/40 bg-accent/10 ring-1 ring-accent/30"
-                    : "border-border-subtle bg-bg-card/40 hover:border-border-subtle hover:bg-bg-raised/40"
-                }`}
-              >
-                <input
-                  id={rowId}
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleExtra(c.id)}
-                  className="mt-1 size-4 shrink-0 accent-accent"
-                />
-                <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-text">{c.title}</p>
-                    <p className="mt-1 text-[12px] leading-relaxed text-text-muted">{c.subtitle}</p>
-                  </div>
-                  <span className="shrink-0 rounded-md border border-border-subtle bg-bg-raised/60 px-2 py-1 text-xs font-semibold tabular-nums text-accent">
-                    {c.eurLabel}
-                    <span className="ml-1.5 font-normal text-text-muted">
-                      ≈ {formatExtraTry(eurForExtraService(c.id))}
-                    </span>
-                  </span>
-                </div>
-              </label>
-              {attachFormBelow ? coDriverForm : null}
-            </Fragment>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1972,7 +2358,8 @@ function StepConfirm({
   abroadUsageFee,
   vehicleBaseSubtotalTry,
   differentDropoffSurchargeTry,
-  differentDropoffSurchargeLabel,
+  differentDropoffDetailLines,
+  handoverSurchargeLines,
   extraFeeTry,
   extraFeeLineItems,
   extraSummary,
@@ -2002,7 +2389,8 @@ function StepConfirm({
   abroadUsageFee: number;
   vehicleBaseSubtotalTry: number;
   differentDropoffSurchargeTry: number;
-  differentDropoffSurchargeLabel: string | null;
+  differentDropoffDetailLines: ExtraFeeLineItem[];
+  handoverSurchargeLines: { key: string; label: string; amountTry: number }[];
   extraFeeTry: number;
   extraFeeLineItems: ExtraFeeLineItem[];
   extraSummary: string | null;
@@ -2069,12 +2457,12 @@ function StepConfirm({
             <span className="text-text">Alış yeri:</span> {pickupLocationLabel}
           </p>
         )}
-        {differentDropoff && returnLocationLabel && (
+        {differentDropoff && returnLocationLabel && differentDropoffDetailLines.length === 0 && (
           <p>
             <span className="text-text">Teslim yeri:</span> {returnLocationLabel}
           </p>
         )}
-        {crossBorderFee > 0 && (
+        {crossBorderFee > 0 && handoverSurchargeLines.length === 0 && (
           <p className="text-[11px] text-amber-200/90">
             Ülkeler arası teslim ek ücreti: {formatPrice(crossBorderFee)}
           </p>
@@ -2092,8 +2480,12 @@ function StepConfirm({
         {!omitPricingAndTerms && (
           <div className="border-t border-border-subtle pt-3">
             <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
-            {differentDropoffSurchargeTry > 0 && differentDropoffSurchargeLabel ? (
-              <Row label={differentDropoffSurchargeLabel} value={formatPrice(differentDropoffSurchargeTry)} />
+            {differentDropoff && differentDropoffDetailLines.length > 0 ? (
+              <DifferentDropoffPricingSection
+                formatPrice={formatPrice}
+                surchargeTry={differentDropoffSurchargeTry}
+                lines={differentDropoffDetailLines}
+              />
             ) : null}
             <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
             <div className="mt-2 flex justify-between font-semibold text-text">

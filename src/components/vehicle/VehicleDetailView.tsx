@@ -15,7 +15,8 @@ import { CalendarDaysIcon } from "@/components/ui/Icons";
 import { CheckCircleSoftIcon, MapPinGarageIcon, XCircleSoftIcon } from "@/components/ui/VehicleSpecIcons";
 import { VehicleRentalFaqPanel } from "@/components/vehicle/VehicleRentalFaqPanel";
 import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
-import { clearBffBearerCache, fetchHasBffSession } from "@/lib/bff-access-token";
+import { clearBffBearerCache, fetchHasBffMemberSession } from "@/lib/bff-access-token";
+import { RENT_GUEST_PREFILL_EMAIL_QUERY, RENT_RESERVATION_GUEST_ACK_QUERY } from "@/lib/guestAuthClient";
 
 const defaultGarageCopy =
   "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
@@ -109,18 +110,31 @@ export function VehicleDetailView({
   const pickup = sp.get("alis") || "";
   const ret = sp.get("teslim") || "";
   const defaultLocId =
-    vehicle.defaultPickupHandoverLocationId ?? pickupLocations[0]?.id ?? "ist-airport-ist";
-  const defaultReturnLocId = vehicle.defaultReturnHandoverLocationId ?? defaultLocId;
+    vehicle.pickupHandoverForBooking?.id ??
+    vehicle.defaultPickupHandoverLocationId ??
+    pickupLocations[0]?.id ??
+    "ist-airport-ist";
+  const defaultReturnLocId = (() => {
+    const rh = vehicle.returnHandoversForBooking;
+    if (rh && rh.length > 0) {
+      const pref = vehicle.defaultReturnHandoverLocationId;
+      if (pref && rh.some((x) => x.id === pref)) return pref;
+      const alt = rh.find((x) => x.id !== defaultLocId);
+      return alt?.id ?? rh[0]!.id;
+    }
+    return vehicle.defaultReturnHandoverLocationId ?? defaultLocId;
+  })();
   const pickupLocId = sp.get("lokasyon") || defaultLocId;
   const returnLocId = sp.get("lokasyonTeslim") || defaultReturnLocId;
   const planVehicleAbroad = sp.get("ulkeDisi") === "1";
 
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
-  const [bffSession, setBffSession] = useState(false);
+  /** Yalnızca üye oturumu rezervasyonu doğrudan açar; misafir JWT tek başına yetmez. */
+  const [hasMemberReserveSession, setHasMemberReserveSession] = useState(false);
   const [guestSubflow, setGuestSubflow] = useState(false);
 
   useEffect(() => {
-    void fetchHasBffSession().then(setBffSession);
+    void fetchHasBffMemberSession().then(setHasMemberReserveSession);
   }, []);
 
   const nights = useMemo(() => {
@@ -156,13 +170,13 @@ export function VehicleDetailView({
   }, [reserveDatePair, pickupLocId, returnLocId, planVehicleAbroad, vehicle.id]);
 
   const goToReservationPage = useCallback(() => {
-    if (bffSession) {
+    if (hasMemberReserveSession) {
       router.push(buildReserveHref());
       return;
     }
     setGuestSubflow(false);
     setAuthPromptOpen(true);
-  }, [bffSession, buildReserveHref, router]);
+  }, [hasMemberReserveSession, buildReserveHref, router]);
 
   const garageText = vehicle.garageLocation ?? defaultGarageCopy;
 
@@ -344,12 +358,16 @@ export function VehicleDetailView({
                 title="Misafir olarak devam"
                 nextLoginHref={buildReserveHref()}
                 onCancelEmbedded={() => setGuestSubflow(false)}
-                onAuthenticated={() => {
+                onAuthenticated={(guestEmail) => {
                   clearBffBearerCache();
                   setAuthPromptOpen(false);
                   setGuestSubflow(false);
-                  void fetchHasBffSession().then(setBffSession);
-                  router.push(buildReserveHref());
+                  const href = buildReserveHref();
+                  const [path, qs = ""] = href.includes("?") ? href.split("?", 2) : [href, ""];
+                  const q = new URLSearchParams(qs);
+                  q.set(RENT_RESERVATION_GUEST_ACK_QUERY, "1");
+                  q.set(RENT_GUEST_PREFILL_EMAIL_QUERY, guestEmail.trim().toLowerCase());
+                  router.push(`${path}?${q.toString()}`);
                 }}
               />
             )}
@@ -502,7 +520,51 @@ export function VehicleDetailView({
                   <MapPinGarageIcon className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
                   <div className="min-w-0 space-y-2 text-sm font-medium leading-relaxed text-text">
                     <p>{garageText}</p>
-                    {(vehicle.defaultPickupHandoverLocationId || vehicle.defaultReturnHandoverLocationId) && (
+                    {vehicle.pickupHandoverForBooking || (vehicle.returnHandoversForBooking?.length ?? 0) > 0 ? (
+                      <div className="space-y-3 border-t border-border-subtle/70 pt-3 text-[13px] text-text-muted">
+                        <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                          Alış / teslim noktaları
+                        </p>
+                        {vehicle.pickupHandoverForBooking ? (
+                          <p className="m-0">
+                            <span className="font-medium text-text">Alış: </span>
+                            {vehicle.pickupHandoverForBooking.name}
+                            {typeof vehicle.pickupHandoverForBooking.surchargeEur === "number" &&
+                            vehicle.pickupHandoverForBooking.surchargeEur > 0
+                              ? ` · +${vehicle.pickupHandoverForBooking.surchargeEur} €`
+                              : null}
+                          </p>
+                        ) : vehicle.defaultPickupHandoverLocationId ? (
+                          <p className="m-0">
+                            <span className="font-medium text-text">Alış: </span>
+                            {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
+                          </p>
+                        ) : null}
+                        {vehicle.returnHandoversForBooking && vehicle.returnHandoversForBooking.length > 0 ? (
+                          <div>
+                            <p className="m-0 mb-1.5 font-medium text-text">Teslim seçenekleri</p>
+                            <ul className="m-0 list-none space-y-1.5 p-0">
+                              {vehicle.returnHandoversForBooking.map((h) => (
+                                <li
+                                  key={h.id}
+                                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 rounded-md border border-border-subtle/60 bg-bg-card/40 px-2.5 py-1.5 text-[12px]"
+                                >
+                                  <span className="min-w-0 text-text">{h.name}</span>
+                                  {typeof h.surchargeEur === "number" && h.surchargeEur > 0 ? (
+                                    <span className="shrink-0 tabular-nums text-accent">+{h.surchargeEur} €</span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : vehicle.defaultReturnHandoverLocationId ? (
+                          <p className="m-0">
+                            <span className="font-medium text-text">Teslim: </span>
+                            {vehicle.defaultReturnHandoverName ?? "—"}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (vehicle.defaultPickupHandoverLocationId || vehicle.defaultReturnHandoverLocationId) ? (
                       <ul className="list-inside list-disc space-y-1 text-[13px] text-text-muted">
                         {vehicle.defaultPickupHandoverLocationId ? (
                           <li>
@@ -521,24 +583,13 @@ export function VehicleDetailView({
                           </li>
                         ) : null}
                       </ul>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                {vehicle.rentOptionDefinitions && vehicle.rentOptionDefinitions.length > 0 ? (
-                  <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 p-4">
-                    <h3 className="text-sm font-semibold text-text">Rezervasyonda seçilebilir ekler</h3>
-                    <ul className="mt-2 space-y-2 text-sm text-text-muted" role="list">
-                      {vehicle.rentOptionDefinitions
-                        .filter((o) => o.active !== false)
-                        .map((o) => (
-                          <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2">
-                            <span className="font-medium text-text">{o.title}</span>
-                            <span className="tabular-nums text-accent">+{formatPrice(o.price)}</span>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                ) : null}
+                <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
+                  Genel ek hizmetler (sigorta paketleri, bebek koltuğu vb.) rezervasyon sihirbazında sunucu
+                  kataloğundan seçilir; araca özel ücretli seçenekler varsa aynı adımda listelenir.
+                </p>
               </section>
 
               <div id="arac-paket" className="scroll-mt-28">
