@@ -4,6 +4,13 @@ export type PickupLocation = {
   detail: string;
   /** ISO 3166-1 alpha-2 (örn. TR, GR) */
   countryCode: string;
+  /**
+   * Rent API `handover_locations.id` (UUID) — doluysa `GET /vehicles` uygunluk filtresine eklenir.
+   * `/handover-locations?kind=PICKUP` ile eşleşen kayıtlardan kopyalayın.
+   */
+  rentPickupHandoverId?: string;
+  /** Teslim noktası UUID; yoksa `rentPickupHandoverId` kullanılır. */
+  rentReturnHandoverId?: string;
 };
 
 export const pickupLocations: PickupLocation[] = [

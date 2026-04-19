@@ -1,12 +1,9 @@
 import { notFound } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
-import { fleet } from "@/data/fleet";
 import { VehicleDetailView } from "@/components/vehicle/VehicleDetailView";
-import { fetchUnifiedFleet } from "@/lib/rentFleet";
+import { fetchFleetVehicleById, fetchUnifiedFleet } from "@/lib/rentFleet";
 
-export function generateStaticParams() {
-  return fleet.map((v) => ({ id: v.id }));
-}
+export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -15,8 +12,12 @@ type Props = {
 
 export default async function AracDetayPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const vehicles = await fetchUnifiedFleet();
-  const vehicle = vehicles.find((v) => v.id === id);
+
+  let vehicle = await fetchFleetVehicleById(id);
+  if (!vehicle) {
+    const merged = await fetchUnifiedFleet();
+    vehicle = merged.find((v) => v.id === id) ?? null;
+  }
   if (!vehicle) notFound();
 
   const sp = await searchParams;

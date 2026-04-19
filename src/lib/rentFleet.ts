@@ -1,7 +1,18 @@
-import { fleet, type FleetVehicle, type VehicleHandoverBookingOption } from "@/data/fleet";
-import { getFirstLocationByCountryCode } from "@/data/locations";
+import type { FleetVehicle, VehicleHandoverBookingOption } from "@/data/fleet";
+import { getFirstLocationByCountryCode, pickupLocations } from "@/data/locations";
+
+function pickupSlugFromHandoverUuid(uuid: string | undefined): string | undefined {
+  if (!uuid) return undefined;
+  const t = String(uuid).trim();
+  for (const l of pickupLocations) {
+    if (l.rentPickupHandoverId === t) return l.id;
+  }
+  return undefined;
+}
 import { getRentApiRoot } from "@/lib/api-base";
-import { fetchVehiclesFromRentApi } from "@/lib/rentApi";
+import type { FleetAvailabilityQuery } from "@/lib/fleetAvailabilityQuery";
+import { fleetAvailabilityToSearchParams } from "@/lib/fleetAvailabilityQuery";
+import { fetchVehicleByIdFromRentApi, fetchVehiclesFromRentApi } from "@/lib/rentApi";
 
 type RentVehicleDto = {
   id?: unknown;
@@ -181,7 +192,10 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
     depositHint: 15000,
     garageLocation:
       "İstanbul, Maslak — Hazırlık noktası A · Filo garajı (demo). Araç bu noktadan veya anlaşmalı ofisten teslim edilir.",
-    pickupLocationId: defaultPickupHandoverLocationId ?? location?.id,
+    pickupLocationId:
+      pickupSlugFromHandoverUuid(defaultPickupHandoverLocationId) ??
+      defaultPickupHandoverLocationId ??
+      location?.id,
     pickupLocationLabel: pickupLocationLabel || undefined,
     defaultPickupHandoverLocationId,
     defaultReturnHandoverLocationId,
@@ -193,13 +207,18 @@ function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null {
   };
 }
 
-async function fetchVehiclesJsonFromGateway(): Promise<unknown[]> {
+async function fetchVehiclesJsonFromGateway(
+  availability?: FleetAvailabilityQuery,
+): Promise<unknown[]> {
   if (typeof window !== "undefined") {
-    return fetchVehiclesFromRentApi();
+    return fetchVehiclesFromRentApi(availability);
   }
   const { getAccessTokenFromCookies } = await import("@/lib/server/rentAccessToken");
   const token = await getAccessTokenFromCookies();
-  const url = `${getRentApiRoot()}/vehicles`;
+  const suffix = availability
+    ? `?${fleetAvailabilityToSearchParams(availability).toString()}`
+    : "";
+  const url = `${getRentApiRoot()}/vehicles${suffix}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   const r = await fetch(url, { headers, cache: "no-store" });
@@ -210,9 +229,11 @@ async function fetchVehiclesJsonFromGateway(): Promise<unknown[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function fetchRentFleetVehicles(): Promise<FleetVehicle[]> {
+export async function fetchRentFleetVehicles(
+  availability?: FleetAvailabilityQuery,
+): Promise<FleetVehicle[]> {
   try {
-    const data = await fetchVehiclesJsonFromGateway();
+    const data = await fetchVehiclesJsonFromGateway(availability);
     if (!Array.isArray(data)) return [];
     return data
       .map((row) => mapRentVehicleToFleet((row ?? {}) as RentVehicleDto))
@@ -222,8 +243,33 @@ export async function fetchRentFleetVehicles(): Promise<FleetVehicle[]> {
   }
 }
 
-export async function fetchUnifiedFleet(): Promise<FleetVehicle[]> {
-  const remote = await fetchRentFleetVehicles();
-  if (remote.length === 0) return fleet;
-  return [...remote, ...fleet.filter((v) => !remote.some((r) => r.id === v.id))];
+/** Veritabanındaki tekil araç: `GET /vehicles/{id}` (liste dışında). */
+export async function fetchFleetVehicleById(id: string): Promise<FleetVehicle | null> {
+  const trimmed = id?.trim();
+  if (!trimmed) return null;
+  try {
+    if (typeof window !== "undefined") {
+      const raw = await fetchVehicleByIdFromRentApi(trimmed);
+      return mapRentVehicleToFleet((raw ?? {}) as RentVehicleDto);
+    }
+    const { getAccessTokenFromCookies } = await import("@/lib/server/rentAccessToken");
+    const token = await getAccessTokenFromCookies();
+    const url = `${getRentApiRoot()}/vehicles/${encodeURIComponent(trimmed)}`;
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const r = await fetch(url, { headers, cache: "no-store" });
+    if (!r.ok) return null;
+    const data: unknown = await r.json();
+    if (data == null || typeof data !== "object") return null;
+    return mapRentVehicleToFleet(data as RentVehicleDto);
+  } catch {
+    return null;
+  }
+}
+
+/** Yalnızca rent API / veritabanı araçları; demo filo birleştirilmez. */
+export async function fetchUnifiedFleet(
+  availability?: FleetAvailabilityQuery,
+): Promise<FleetVehicle[]> {
+  return await fetchRentFleetVehicles(availability);
 }

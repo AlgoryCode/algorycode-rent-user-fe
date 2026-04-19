@@ -6,17 +6,25 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FleetVehicle } from "@/data/fleet";
 import { pickupLocations } from "@/data/locations";
+import type { HeroHandoverOption } from "@/lib/handoverLocations";
 import {
   applyFleetFilters,
   buildAraclarQueryString,
+  hasRentalWindowInSearchParams,
+  mergeRentalParamsIntoSearchParams,
   nightsFromSearchParams,
   parseFiltersFromParams,
+  priceBoundsFromVehicles,
   type FleetFilterState,
   type SortKey,
 } from "@/lib/fleetFilters";
+import { compareIso } from "@/lib/calendarGrid";
+import { addDays, parseIsoDate, toIsoDate } from "@/lib/dates";
 import { VehicleCard } from "@/components/vehicle/VehicleCard";
+import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { RentSelect } from "@/components/ui/RentSelect";
+import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
 
 const transmissions = [
   { id: "" as const, label: "Tümü" },
@@ -39,7 +47,15 @@ const sorts: { id: SortKey; label: string }[] = [
   { id: "isim", label: "İsim (A-Z)" },
 ];
 
-export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
+export function AraclarExplore({
+  vehicles,
+  pickupHandoverOptions,
+  returnHandoverOptions,
+}: {
+  vehicles: FleetVehicle[];
+  pickupHandoverOptions: HeroHandoverOption[];
+  returnHandoverOptions: HeroHandoverOption[];
+}) {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -50,26 +66,34 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
 
   const results = useMemo(() => applyFleetFilters(vehicles, filters), [filters, vehicles]);
   const nights = useMemo(() => nightsFromSearchParams(sp), [sp]);
-  const bounds = useMemo(() => {
-    const prices = vehicles.map((v) => v.pricePerDay).filter((n) => Number.isFinite(n));
-    if (prices.length === 0) return { min: 0, max: 0 };
-    return { min: Math.min(...prices), max: Math.max(...prices) };
-  }, [vehicles]);
+  const rentalWindowInUrl = useMemo(
+    () => hasRentalWindowInSearchParams(new URLSearchParams(sp.toString())),
+    [sp],
+  );
+  const bounds = useMemo(() => priceBoundsFromVehicles(vehicles), [vehicles]);
   const categories = useMemo(() => [...new Set(vehicles.map((v) => v.category))].sort(), [vehicles]);
   const sortOptions = useMemo(() => sorts.map((s) => ({ value: s.id, label: s.label })), []);
 
   const pushFilters = useCallback(
     (next: Partial<FleetFilterState>) => {
       const merged: FleetFilterState = { ...filters, ...next };
-      const qs = buildAraclarQueryString(new URLSearchParams(sp.toString()), merged);
+      const qs = buildAraclarQueryString(new URLSearchParams(sp.toString()), merged, bounds);
       router.push(`${pathname}?${qs}`);
     },
-    [filters, pathname, router, sp],
+    [bounds, filters, pathname, router, sp],
   );
 
   const clearAllFilters = () => {
     const p = new URLSearchParams();
-    for (const k of ["alis", "teslim", "lokasyon"] as const) {
+    for (const k of [
+      "alis",
+      "teslim",
+      "lokasyon",
+      "lokasyonTeslim",
+      "baslangicKonum",
+      "alis_saat",
+      "teslim_saat",
+    ] as const) {
       const v = sp.get(k);
       if (v) p.set(k, v);
     }
@@ -121,8 +145,8 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
               Filonuzdaki <span className="text-accent">doğru aracı</span> seçin
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-muted sm:text-[15px]">
-              Kurumsal güvenceyle şeffaf günlük fiyatlar; filtreler ve arama URL ile paylaşılabilir. Teslim
-              noktası ve tarihlerinizi sabitledikten sonra listeyi daraltın.
+              Kurumsal güvenceyle şeffaf günlük fiyatlar; filtreler ve arama URL ile paylaşılabilir. Tarih ve
+              alış / bırakış noktasını soldaki filtrelerde (mobilde &quot;Filtreler&quot;) seçin.
             </p>
           </motion.div>
         </div>
@@ -137,12 +161,13 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
             pushFilters={pushFilters}
             clearAllFilters={clearAllFilters}
             hasActiveFilters={!!hasActiveFilters}
-            locationOptions={pickupLocations}
+            pickupLocationOptions={pickupHandoverOptions}
+            returnLocationOptions={returnHandoverOptions}
           />
         </aside>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-0 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-text-muted">
                 <span className="font-semibold text-text">{results.length}</span> araç
@@ -206,9 +231,13 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
                 exit={{ opacity: 0 }}
                 className="mt-10 border border-border-subtle bg-bg-card p-8 text-center sm:p-10"
               >
-                <p className="text-xl font-semibold text-text">Sonuç bulunamadı</p>
+                <p className="text-xl font-semibold text-text">
+                  {rentalWindowInUrl ? "Uygun araç bulunamadı" : "Sonuç bulunamadı"}
+                </p>
                 <p className="mt-2 text-sm text-text-muted">
-                  Filtreleri gevşetmeyi veya arama metnini temizlemeyi deneyin.
+                  {rentalWindowInUrl
+                    ? "Seçtiğiniz tarih ve konum için şu an listelenecek uygun araç yok. Tarihleri veya alış noktasını değiştirip tekrar deneyebilirsiniz."
+                    : "Filtreleri gevşetmeyi veya arama metnini temizlemeyi deneyin."}
                 </p>
                 <motion.button
                   type="button"
@@ -280,7 +309,8 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
                     setMobileFiltersOpen(false);
                   }}
                   hasActiveFilters={!!hasActiveFilters}
-                  locationOptions={pickupLocations}
+                  pickupLocationOptions={pickupHandoverOptions}
+                  returnLocationOptions={returnHandoverOptions}
                 />
               </div>
             </motion.div>
@@ -291,6 +321,273 @@ export function AraclarExplore({ vehicles }: { vehicles: FleetVehicle[] }) {
   );
 }
 
+function staticPickupHandoverList(): HeroHandoverOption[] {
+  return pickupLocations.map((l) => ({
+    id: (l.rentPickupHandoverId ?? l.id).trim() || l.id,
+    label: l.label,
+    countryCode: l.countryCode,
+  }));
+}
+
+function shortHandoverLabel(full: string) {
+  return full.replace("İstanbul ", "İst. ");
+}
+
+/** Alış / bırakış handover: URL (`lokasyon`, `lokasyonTeslim`) ile senkron. */
+function FilterPanelLocations({
+  filters,
+  bounds,
+  pickupFromProps,
+  returnFromProps,
+}: {
+  filters: FleetFilterState;
+  bounds: { min: number; max: number };
+  pickupFromProps: HeroHandoverOption[];
+  returnFromProps: HeroHandoverOption[];
+}) {
+  const sp = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const pickups = pickupFromProps.length > 0 ? pickupFromProps : staticPickupHandoverList();
+  const returns = returnFromProps.length > 0 ? returnFromProps : pickups;
+
+  const [differentDropoff, setDifferentDropoff] = useState(false);
+  const [returnId, setReturnId] = useState("");
+
+  const spKey = sp.toString();
+  useEffect(() => {
+    const p = new URLSearchParams(spKey);
+    const lok = p.get("lokasyon")?.trim() || p.get("baslangicKonum")?.trim() || "";
+    const lt = p.get("lokasyonTeslim")?.trim() || lok;
+    setDifferentDropoff(Boolean(lok && lt && lt !== lok));
+    if (lt) setReturnId(lt);
+    else if (lok) setReturnId(lok);
+    else setReturnId("");
+  }, [spKey]);
+
+  const commitHandover = useCallback(
+    (pick: string, drop: string, same: boolean) => {
+      const pi = pick.trim();
+      const di = same ? pi : drop.trim() || pi;
+      const next = mergeRentalParamsIntoSearchParams(new URLSearchParams(sp.toString()), {
+        lokasyon: pi,
+        baslangicKonum: pi,
+        lokasyonTeslim: di,
+      });
+      const fNext: FleetFilterState = { ...filters, startLocationId: pi };
+      router.push(`${pathname}?${buildAraclarQueryString(next, fNext, bounds)}`);
+    },
+    [bounds, filters, pathname, router, sp],
+  );
+
+  const startOpts = useMemo(
+    () => [
+      { value: "", label: "Tüm konumlar" },
+      ...pickups.map((l) => ({
+        value: l.id,
+        label: shortHandoverLabel(l.label),
+        right: l.countryCode,
+      })),
+    ],
+    [pickups],
+  );
+
+  const retOpts = useMemo(
+    () =>
+      returns.map((l) => ({
+        value: l.id,
+        label: shortHandoverLabel(l.label),
+        right: l.countryCode,
+      })),
+    [returns],
+  );
+
+  const pickId = filters.startLocationId.trim();
+
+  const onPickupChange = (v: string) => {
+    const nextPick = v.trim();
+    if (!nextPick) {
+      setDifferentDropoff(false);
+      commitHandover("", "", true);
+      return;
+    }
+    if (!differentDropoff) {
+      commitHandover(nextPick, nextPick, true);
+      return;
+    }
+    let drop = returnId.trim();
+    if (!drop || drop === nextPick) {
+      drop = returns.find((o) => o.id !== nextPick)?.id ?? nextPick;
+    }
+    setReturnId(drop);
+    commitHandover(nextPick, drop, false);
+  };
+
+  const onReturnChange = (v: string) => {
+    setReturnId(v);
+    if (!pickId) return;
+    commitHandover(pickId, v, false);
+  };
+
+  const onDifferentToggle = (diff: boolean) => {
+    if (!pickId) return;
+    setDifferentDropoff(diff);
+    if (!diff) {
+      commitHandover(pickId, pickId, true);
+      setReturnId(pickId);
+      return;
+    }
+    let drop = returnId.trim();
+    if (!drop || drop === pickId) {
+      drop = returns.find((o) => o.id !== pickId)?.id ?? pickId;
+    }
+    setReturnId(drop);
+    commitHandover(pickId, drop, false);
+  };
+
+  const returnSelectValue =
+    returnId && returns.some((o) => o.id === returnId)
+      ? returnId
+      : (returns.find((o) => o.id !== pickId)?.id ?? pickId);
+
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+        <LocationPinIcon className="size-3.5" />
+        Kiralama başlangıç konumu
+      </p>
+      <div className="mt-3">
+        <RentSelect
+          value={filters.startLocationId}
+          onChange={onPickupChange}
+          options={startOpts}
+          ariaLabel="Kiralama başlangıç konumu"
+          className="w-full"
+          leadingIcon={<LocationPinIcon className="size-3.5" />}
+          optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
+        />
+      </div>
+
+      {pickId ? (
+        <>
+          <div className="mt-3">
+            <DifferentDropoffToggle checked={differentDropoff} onChange={onDifferentToggle} />
+          </div>
+          {differentDropoff ? (
+            <div className="mt-3">
+              <span className="text-xs font-medium text-text-muted">Bırakış yeri</span>
+              <RentSelect
+                value={returnSelectValue}
+                onChange={onReturnChange}
+                options={retOpts}
+                ariaLabel="Bırakış yeri"
+                className="mt-1 w-full"
+              />
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** Sol filtre sütunu: tarih/saat URL’ye yazılır; liste anında güncellenir. */
+function FilterPanelRentalDates({
+  filters,
+  bounds,
+}: {
+  filters: FleetFilterState;
+  bounds: { min: number; max: number };
+}) {
+  const sp = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const spKey = sp.toString();
+
+  const [pickupDate, setPickupDate] = useState(() => toIsoDate(addDays(new Date(), 1)));
+  const [returnDate, setReturnDate] = useState(() => toIsoDate(addDays(new Date(), 2)));
+  const [pickupTime, setPickupTime] = useState("10:00");
+  const [returnTime, setReturnTime] = useState("10:00");
+
+  useEffect(() => {
+    const params = new URLSearchParams(spKey);
+    const alis = params.get("alis")?.trim();
+    const teslim = params.get("teslim")?.trim();
+    const as = params.get("alis_saat")?.trim();
+    const ts = params.get("teslim_saat")?.trim();
+    if (alis && parseIsoDate(alis)) setPickupDate(alis);
+    if (teslim && parseIsoDate(teslim)) setReturnDate(teslim);
+    if (as) setPickupTime(as);
+    if (ts) setReturnTime(ts);
+  }, [spKey]);
+
+  const maxSearchDate = useMemo(() => toIsoDate(addDays(new Date(), 400)), []);
+  const minDate = useMemo(() => toIsoDate(addDays(new Date(), 0)), []);
+
+  const pushRentalDates = useCallback(
+    (patch: Partial<{ alis: string; teslim: string; alis_saat: string; teslim_saat: string }>) => {
+      const alis = patch.alis ?? pickupDate;
+      const teslimRaw = patch.teslim ?? returnDate;
+      const p0 = parseIsoDate(alis);
+      let teslim = teslimRaw;
+      if (p0) {
+        const r0 = parseIsoDate(teslimRaw);
+        if (!r0 || compareIso(teslimRaw, alis) <= 0) teslim = toIsoDate(addDays(p0, 1));
+      }
+      const next = mergeRentalParamsIntoSearchParams(new URLSearchParams(sp.toString()), {
+        alis,
+        teslim,
+        alis_saat: patch.alis_saat ?? pickupTime,
+        teslim_saat: patch.teslim_saat ?? returnTime,
+      });
+      router.push(`${pathname}?${buildAraclarQueryString(next, filters, bounds)}`);
+    },
+    [bounds, filters, pathname, pickupDate, pickupTime, returnDate, returnTime, router, sp],
+  );
+
+  return (
+    <div className="rounded-lg border border-border-subtle/60 bg-bg-deep/15 px-2.5 py-2 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Tarih ve saat</p>
+      <p className="mt-0.5 text-[10px] leading-tight text-text-muted">Tarihe tıklayınca takvim açılır.</p>
+      <div className="mt-2 min-w-0">
+        <HeroRentalRangeDatePickers
+          layout="heroSearchBar"
+          compact
+          desktopPopoverAlign="left"
+          className="w-full min-w-0"
+          minDate={minDate}
+          maxDate={maxSearchDate}
+          pickupDate={pickupDate}
+          returnDate={returnDate}
+          onRangeCommit={(p, r) => {
+            setPickupDate(p);
+            setReturnDate(r);
+            pushRentalDates({ alis: p, teslim: r });
+          }}
+          pickTime={pickupTime}
+          returnTime={returnTime}
+          onPickTime={(t) => {
+            setPickupTime(t);
+            pushRentalDates({ alis_saat: t });
+          }}
+          onReturnTime={(t) => {
+            setReturnTime(t);
+            pushRentalDates({ teslim_saat: t });
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function parseOptionalNonNegativeTry(raw: string): number | null | "invalid" {
+  const t = raw.trim().replace(",", ".");
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return "invalid";
+  return n;
+}
+
 function FilterPanel({
   filters,
   bounds,
@@ -298,7 +595,8 @@ function FilterPanel({
   pushFilters,
   clearAllFilters,
   hasActiveFilters,
-  locationOptions,
+  pickupLocationOptions,
+  returnLocationOptions,
 }: {
   filters: FleetFilterState;
   bounds: { min: number; max: number };
@@ -306,15 +604,37 @@ function FilterPanel({
   pushFilters: (p: Partial<FleetFilterState>) => void;
   clearAllFilters: () => void;
   hasActiveFilters: boolean;
-  locationOptions: { id: string; label: string; countryCode: string }[];
+  pickupLocationOptions: HeroHandoverOption[];
+  returnLocationOptions: HeroHandoverOption[];
 }) {
-  const startLocationOptions = [
-    { value: "", label: "Tüm konumlar" },
-    ...locationOptions.map((l) => ({ value: l.id, label: l.label, right: l.countryCode })),
-  ];
+  const [minPriceDraft, setMinPriceDraft] = useState(() =>
+    filters.minPrice != null ? String(filters.minPrice) : "",
+  );
+  const [maxPriceDraft, setMaxPriceDraft] = useState(() =>
+    filters.maxPrice != null ? String(filters.maxPrice) : "",
+  );
+
+  useEffect(() => {
+    setMinPriceDraft(filters.minPrice != null ? String(filters.minPrice) : "");
+    setMaxPriceDraft(filters.maxPrice != null ? String(filters.maxPrice) : "");
+  }, [filters.minPrice, filters.maxPrice]);
+
+  const appliedMinStr = filters.minPrice != null ? String(filters.minPrice) : "";
+  const appliedMaxStr = filters.maxPrice != null ? String(filters.maxPrice) : "";
+  const priceDraftDirty =
+    minPriceDraft.trim() !== appliedMinStr || maxPriceDraft.trim() !== appliedMaxStr;
+
+  const applyBudgetFilter = useCallback(() => {
+    const minP = parseOptionalNonNegativeTry(minPriceDraft);
+    const maxP = parseOptionalNonNegativeTry(maxPriceDraft);
+    if (minP === "invalid" || maxP === "invalid") return;
+    pushFilters({ minPrice: minP, maxPrice: maxP });
+  }, [maxPriceDraft, minPriceDraft, pushFilters]);
 
   return (
     <div className="space-y-6 border-2 border-border-subtle bg-bg-card p-5 sm:p-6">
+      <FilterPanelRentalDates filters={filters} bounds={bounds} />
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
           Günlük bütçe
@@ -325,13 +645,15 @@ function FilterPanel({
             <input
               type="number"
               className="mt-1 w-full rounded-lg border border-border-subtle bg-bg-card px-2 py-2 text-[13px] text-text"
-              min={bounds.min}
-              max={bounds.max}
-              value={filters.minPrice ?? ""}
+              min={0}
+              value={minPriceDraft}
               placeholder={String(bounds.min)}
-              onChange={(e) => {
-                const v = e.target.value;
-                pushFilters({ minPrice: v === "" ? null : Number(v) });
+              onChange={(e) => setMinPriceDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (priceDraftDirty) applyBudgetFilter();
+                }
               }}
             />
           </label>
@@ -340,40 +662,36 @@ function FilterPanel({
             <input
               type="number"
               className="mt-1 w-full rounded-lg border border-border-subtle bg-bg-card px-2 py-2 text-[13px] text-text"
-              min={bounds.min}
-              max={bounds.max}
-              value={filters.maxPrice ?? ""}
-              placeholder={String(bounds.max)}
-              onChange={(e) => {
-                const v = e.target.value;
-                pushFilters({ maxPrice: v === "" ? null : Number(v) });
+              min={0}
+              value={maxPriceDraft}
+              placeholder="İsteğe bağlı"
+              onChange={(e) => setMaxPriceDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (priceDraftDirty) applyBudgetFilter();
+                }
               }}
             />
           </label>
         </div>
-        <p className="mt-2 text-[11px] text-text-muted">
-          Aralık: {bounds.min.toLocaleString("tr-TR")} – {bounds.max.toLocaleString("tr-TR")}{" "}
-          ₺ / gün
-        </p>
+        <motion.button
+          type="button"
+          disabled={!priceDraftDirty}
+          whileTap={priceDraftDirty ? { scale: 0.98 } : undefined}
+          onClick={applyBudgetFilter}
+          className="mt-3 w-full rounded-lg bg-accent py-2 text-[13px] font-semibold text-accent-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Filtrele
+        </motion.button>
       </div>
 
-      <div>
-        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-          <LocationPinIcon className="size-3.5" />
-          Kiralama başlangıç konumu
-        </p>
-        <div className="mt-3">
-          <RentSelect
-            value={filters.startLocationId}
-            onChange={(v) => pushFilters({ startLocationId: v })}
-            options={startLocationOptions}
-            ariaLabel="Kiralama başlangıç konumu"
-            className="w-full"
-            leadingIcon={<LocationPinIcon className="size-3.5" />}
-            optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
-          />
-        </div>
-      </div>
+      <FilterPanelLocations
+        filters={filters}
+        bounds={bounds}
+        pickupFromProps={pickupLocationOptions}
+        returnFromProps={returnLocationOptions}
+      />
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">

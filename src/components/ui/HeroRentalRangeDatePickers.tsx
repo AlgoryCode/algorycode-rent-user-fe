@@ -79,6 +79,13 @@ const searchBarDateBtnClass =
 const searchBarTimeSelectClass =
   "flex h-10 min-h-[44px] w-[5.65rem] shrink-0 cursor-pointer appearance-none items-center rounded-lg border border-neutral-200/90 bg-white bg-[length:10px_6px] bg-[position:right_8px_center] bg-no-repeat px-2.5 pr-8 text-sm font-semibold tabular-nums text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text lg:h-9 lg:min-h-0 lg:w-[5.35rem]";
 
+/** Dar yan panel (ör. filtre sütunu): daha alçak satırlar. */
+const searchBarDateBtnCompactClass =
+  "flex h-8 min-h-0 w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-neutral-200/90 bg-white px-2 text-left text-[11px] font-medium leading-tight text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text";
+
+const searchBarTimeSelectCompactClass =
+  "flex h-8 min-h-0 w-[4.65rem] shrink-0 cursor-pointer appearance-none items-center rounded-md border border-neutral-200/90 bg-white bg-[length:9px_5px] bg-[position:right_5px_center] bg-no-repeat px-1.5 pr-6 text-[11px] font-semibold tabular-nums text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text";
+
 const searchBarFieldLabel =
   "text-xs font-medium text-neutral-500 dark:text-text-muted";
 
@@ -97,6 +104,8 @@ type Props = {
   layout?: "default" | "heroSearchBar" | "inline";
   /** Dolu günler — tıklanamaz; aralıkta varsa commit reddedilir. */
   blockedDates?: Set<string>;
+  /** Gerçek araç müsaitliği yüklenirken takvimi geçici kilitle (yanlış seçim önlenir). */
+  blockedDatesLoading?: boolean;
   /** Alış ≤ teslim varsayımıyla çağrılır; hata metni veya `null`. */
   onValidateRange?: (pickupIso: string, returnIso: string) => string | null;
   /** `true` iken inline panelde saat seçicileri gösterilmez (ör. sadece tarih modalı). */
@@ -108,6 +117,13 @@ type Props = {
   inlineFramed?: boolean;
   /** `layout="inline"` iken gösterilecek ay sayısı (rezervasyon: 1). */
   inlineMonthCount?: 1 | 2;
+  /** `layout="heroSearchBar"` iken daha düşük satırlar (dar yan panel). */
+  compact?: boolean;
+  /**
+   * Masaüstü açılır takvim: `center` tetikleyicinin altında ortalanır (varsayılan);
+   * `left` sol kenarı hizalar, panel sağa doğru genişler (dar yan panel).
+   */
+  desktopPopoverAlign?: "center" | "left";
 };
 
 function eachIsoInInclusiveRange(fromIso: string, toIso: string, visit: (iso: string) => void) {
@@ -135,12 +151,15 @@ export function HeroRentalRangeDatePickers({
   className = "",
   layout = "default",
   blockedDates,
+  blockedDatesLoading = false,
   onValidateRange,
   hideTimeSelects = false,
   inlineTitle = "Takvim",
   hideInlineTitle = false,
   inlineFramed = true,
   inlineMonthCount = 2,
+  compact = false,
+  desktopPopoverAlign = "center",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [anchorIso, setAnchorIso] = useState<string | null>(null);
@@ -157,10 +176,16 @@ export function HeroRentalRangeDatePickers({
   const anchorRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const desktopPosRafRef = useRef<number | null>(null);
-  const [desktopFixedLayout, setDesktopFixedLayout] = useState({
+  const [desktopFixedLayout, setDesktopFixedLayout] = useState<{
+    top: number;
+    left: number;
+    panelWidth: number;
+    anchor: "center" | "left";
+  }>({
     top: 0,
-    leftCenter: 0,
+    left: 0,
     panelWidth: DESKTOP_RANGE_PANEL_MAX_W,
+    anchor: "center",
   });
 
   const minD = parseIsoDate(minDate) ?? new Date(2000, 0, 1);
@@ -231,16 +256,30 @@ export function HeroRentalRangeDatePickers({
       DESKTOP_RANGE_PANEL_MAX_W,
       Math.max(280, Math.round(vw - DESKTOP_RANGE_PANEL_VIEWPORT_GUTTER)),
     );
-    const half = panelWidth / 2;
     const edge = DESKTOP_RANGE_PANEL_VIEWPORT_GUTTER / 2;
+    const top = Math.round(r.bottom + 8);
+    if (desktopPopoverAlign === "left") {
+      const minL = Math.max(4, edge / 2);
+      const maxL = Math.max(minL, vw - panelWidth - edge);
+      const leftPx = Math.round(Math.min(maxL, Math.max(minL, r.left)));
+      setDesktopFixedLayout({
+        top,
+        left: leftPx,
+        panelWidth,
+        anchor: "left",
+      });
+      return;
+    }
+    const half = panelWidth / 2;
     const rawCenter = r.left + r.width / 2;
     const leftCenter = Math.round(Math.min(vw - half - edge, Math.max(half + edge, rawCenter)));
     setDesktopFixedLayout({
-      top: Math.round(r.bottom + 8),
-      leftCenter,
+      top,
+      left: leftCenter,
       panelWidth,
+      anchor: "center",
     });
-  }, []);
+  }, [desktopPopoverAlign]);
 
   const scheduleDesktopPortalPosition = useCallback(() => {
     if (desktopPosRafRef.current != null) return;
@@ -264,7 +303,14 @@ export function HeroRentalRangeDatePickers({
       window.removeEventListener("resize", updateDesktopPortalPosition);
       window.removeEventListener("scroll", scheduleDesktopPortalPosition, true);
     };
-  }, [open, updateDesktopPortalPosition, scheduleDesktopPortalPosition, leftYM, isMobileFullscreenPanel]);
+  }, [
+    open,
+    updateDesktopPortalPosition,
+    scheduleDesktopPortalPosition,
+    leftYM,
+    isMobileFullscreenPanel,
+    desktopPopoverAlign,
+  ]);
 
   useEffect(() => {
     if (layout === "inline") return;
@@ -513,29 +559,28 @@ export function HeroRentalRangeDatePickers({
         );
       }      )() : null}
 
-      <div
-        className={
-          inlineSingleMonth
-            ? "mx-auto grid w-full max-w-md grid-cols-1 gap-4"
-            : "grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 md:gap-x-8 md:gap-y-0 lg:gap-x-10"
-        }
-      >
-        <MonthGrid
-          year={leftYM.y}
-          month={leftYM.m}
-          pickupDate={pickupDate}
-          returnDate={returnDate}
-          anchorIso={anchorIso}
-          minDate={minDate}
-          maxDate={maxDate}
-          dotSet={dotSet}
-          blockedDates={blockedDates}
-          onDayClick={onDayClick}
-        />
-        {!inlineSingleMonth ? (
+      <div className="relative">
+        {blockedDatesLoading ? (
+          <div
+            className="absolute inset-0 z-[5] flex items-center justify-center rounded-lg bg-white/75 text-center text-xs font-medium text-neutral-600 dark:bg-bg-card/85 dark:text-text-muted"
+            role="status"
+            aria-live="polite"
+          >
+            Dolu günler yükleniyor…
+          </div>
+        ) : null}
+        <div
+          className={`${
+            blockedDatesLoading ? "pointer-events-none opacity-45 " : ""
+          }${
+            inlineSingleMonth
+              ? "mx-auto grid w-full max-w-md grid-cols-1 gap-4"
+              : "grid grid-cols-1 gap-5 sm:gap-6 md:grid-cols-2 md:gap-x-8 md:gap-y-0 lg:gap-x-10"
+          }`}
+        >
           <MonthGrid
-            year={rightYM.y}
-            month={rightYM.m}
+            year={leftYM.y}
+            month={leftYM.m}
             pickupDate={pickupDate}
             returnDate={returnDate}
             anchorIso={anchorIso}
@@ -545,7 +590,21 @@ export function HeroRentalRangeDatePickers({
             blockedDates={blockedDates}
             onDayClick={onDayClick}
           />
-        ) : null}
+          {!inlineSingleMonth ? (
+            <MonthGrid
+              year={rightYM.y}
+              month={rightYM.m}
+              pickupDate={pickupDate}
+              returnDate={returnDate}
+              anchorIso={anchorIso}
+              minDate={minDate}
+              maxDate={maxDate}
+              dotSet={dotSet}
+              blockedDates={blockedDates}
+              onDayClick={onDayClick}
+            />
+          ) : null}
+        </div>
       </div>
 
       {layout === "inline" ? (
@@ -637,8 +696,8 @@ export function HeroRentalRangeDatePickers({
             style={{
               position: "fixed",
               top: desktopFixedLayout.top,
-              left: desktopFixedLayout.leftCenter,
-              transform: "translateX(-50%)",
+              left: desktopFixedLayout.left,
+              transform: desktopFixedLayout.anchor === "center" ? "translateX(-50%)" : "none",
               width: desktopFixedLayout.panelWidth,
               zIndex: 99990,
             }}
@@ -670,14 +729,22 @@ export function HeroRentalRangeDatePickers({
   }
 
   if (layout === "heroSearchBar") {
-    return (
-      <div ref={anchorRef} className={`relative isolate flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-0 ${className}`}>
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:pr-3 lg:pr-4">
-          <span className={searchBarFieldLabel}>Alış tarihi</span>
-          <div className="flex min-w-0 items-center gap-2">
+    const dateBtnClass = compact ? searchBarDateBtnCompactClass : searchBarDateBtnClass;
+    const timeSelClass = compact ? searchBarTimeSelectCompactClass : searchBarTimeSelectClass;
+    const fieldLblClass = compact ? `${searchBarFieldLabel} text-[10px]` : searchBarFieldLabel;
+    const rowGap = compact ? "gap-1.5" : "gap-2";
+    const outerGap = compact ? "gap-2" : "gap-3";
+    const pickColPad = compact ? "sm:pr-2 lg:pr-2" : "sm:pr-3 lg:pr-4";
+    const dropColPad = compact ? "sm:pl-2 lg:pl-2" : "sm:pl-3 lg:pl-4";
+
+    if (compact) {
+      return (
+        <div ref={anchorRef} className={`relative isolate w-full min-w-0 ${className}`.trim()}>
+          <div className="grid w-full gap-x-2 gap-y-1.5 [grid-template-columns:minmax(0,1fr)_auto]">
+            <span className={`col-span-2 ${fieldLblClass}`}>Alış tarihi</span>
             <button
               type="button"
-              className={searchBarDateBtnClass}
+              className={`${dateBtnClass} min-w-0`}
               aria-expanded={open}
               aria-haspopup="dialog"
               onClick={() => openPanel("pickup")}
@@ -690,7 +757,77 @@ export function HeroRentalRangeDatePickers({
             <select
               value={pickTime}
               onChange={(e) => onPickTime(e.target.value)}
-              className={searchBarTimeSelectClass}
+              className={timeSelClass}
+              style={{ backgroundImage: chevronSvg }}
+              aria-label="Alış saati"
+            >
+              {!HERO_HALF_HOUR_SLOTS.includes(pickTime) ? <option value={pickTime}>{pickTime}</option> : null}
+              {HERO_HALF_HOUR_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <span className={`col-span-2 border-t border-neutral-200/70 pt-2 dark:border-white/10 ${fieldLblClass}`}>
+              Bırakış tarihi
+            </span>
+            <button
+              type="button"
+              className={`${dateBtnClass} min-w-0`}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={() => openPanel("return")}
+            >
+              <span className="min-w-0 truncate">{heroDateButtonLabel(returnDate)}</span>
+              <span className="shrink-0 text-neutral-400" aria-hidden>
+                ▾
+              </span>
+            </button>
+            <select
+              value={returnTime}
+              onChange={(e) => onReturnTime(e.target.value)}
+              className={timeSelClass}
+              style={{ backgroundImage: chevronSvg }}
+              aria-label="Bırakış saati"
+            >
+              {!HERO_HALF_HOUR_SLOTS.includes(returnTime) ? <option value={returnTime}>{returnTime}</option> : null}
+              {HERO_HALF_HOUR_SLOTS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {mobileFullScreenPanel}
+          {desktopPortalPanel}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        ref={anchorRef}
+        className={`relative isolate flex w-full min-w-0 flex-col ${outerGap} sm:flex-row sm:items-stretch sm:gap-0 ${className}`}
+      >
+        <div className={`flex min-w-0 flex-1 flex-col justify-center gap-1 ${pickColPad}`}>
+          <span className={fieldLblClass}>Alış tarihi</span>
+          <div className={`flex min-w-0 items-center ${rowGap}`}>
+            <button
+              type="button"
+              className={dateBtnClass}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              onClick={() => openPanel("pickup")}
+            >
+              <span className="min-w-0 truncate">{heroDateButtonLabel(pickupDate)}</span>
+              <span className="shrink-0 text-neutral-400" aria-hidden>
+                ▾
+              </span>
+            </button>
+            <select
+              value={pickTime}
+              onChange={(e) => onPickTime(e.target.value)}
+              className={timeSelClass}
               style={{ backgroundImage: chevronSvg }}
               aria-label="Alış saati"
             >
@@ -711,12 +848,12 @@ export function HeroRentalRangeDatePickers({
           className="hidden w-px shrink-0 self-stretch bg-neutral-200/80 sm:block dark:bg-white/10"
           aria-hidden
         />
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 sm:pl-3 lg:pl-4">
-          <span className={searchBarFieldLabel}>Bırakış tarihi</span>
-          <div className="flex min-w-0 items-center gap-2">
+        <div className={`flex min-w-0 flex-1 flex-col justify-center gap-1 ${dropColPad}`}>
+          <span className={fieldLblClass}>Bırakış tarihi</span>
+          <div className={`flex min-w-0 items-center ${rowGap}`}>
             <button
               type="button"
-              className={searchBarDateBtnClass}
+              className={dateBtnClass}
               aria-expanded={open}
               aria-haspopup="dialog"
               onClick={() => openPanel("return")}
@@ -729,7 +866,7 @@ export function HeroRentalRangeDatePickers({
             <select
               value={returnTime}
               onChange={(e) => onReturnTime(e.target.value)}
-              className={searchBarTimeSelectClass}
+              className={timeSelClass}
               style={{ backgroundImage: chevronSvg }}
               aria-label="Bırakış saati"
             >

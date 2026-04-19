@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
-import { blockedDaysInInclusiveRange, blockedSetForVehicle } from "@/data/availability";
+import { useEffect, useState } from "react";
+import { blockedDaysInInclusiveRange } from "@/data/availability";
+import { useVehicleBlockedIsoDates } from "@/hooks/useVehicleBlockedIsoDates";
 import {
   WEEKDAYS_TR,
   calendarCells,
@@ -100,10 +101,7 @@ export function RentalAvailabilityCalendarPanel({
   const [phase, setPhase] = useState<"pickStart" | "pickEnd">("pickStart");
   const [error, setError] = useState<string | null>(null);
 
-  const blocked = useMemo(
-    () => blockedSetForVehicle(vehicleId ?? null),
-    [vehicleId],
-  );
+  const { blocked, loading: blockedLoading } = useVehicleBlockedIsoDates(vehicleId ?? null);
   const minD = parseIsoDate(todayIso())!;
 
   useEffect(() => {
@@ -179,6 +177,7 @@ export function RentalAvailabilityCalendarPanel({
   };
 
   const handleDayClick = (day: number) => {
+    if (blockedLoading) return;
     const iso = toIsoDate(new Date(year, month, day));
     if (compareIso(iso, todayIso()) < 0) return;
     if (blocked.has(iso)) return;
@@ -376,36 +375,48 @@ export function RentalAvailabilityCalendarPanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={fadeMonth}
+            className="relative"
           >
-            <div
-              className={`grid grid-cols-7 gap-0 text-center text-[9px] font-medium uppercase tracking-wide text-text-muted/90 ${tight ? "lg:text-[7px]" : "lg:text-[8px]"}`}
-            >
-              {WEEKDAYS_TR.map((w) => (
-                <div key={w} className={`py-1 ${tight ? "lg:py-0.5" : "lg:py-0.5"}`}>
-                  {w}
-                </div>
-              ))}
-            </div>
-            <div className="mt-0.5 grid max-w-full grid-cols-7 gap-0 divide-x divide-y divide-border-subtle/55 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-raised/15 dark:bg-bg-deep/25">
-              {cells.map((cell, i) =>
-                cell == null ? (
-                  <div key={`e-${i}`} className="aspect-square min-w-0 bg-bg-deep/5 dark:bg-bg-deep/20" aria-hidden />
-                ) : (
-                  <div key={`${year}-${month}-${cell}`} className="aspect-square min-w-0">
-                    <AvailabilityCalendarDay
-                      embedded={tight}
-                      day={cell}
-                      iso={toIsoDate(new Date(year, month, cell))}
-                      blocked={blocked.has(toIsoDate(new Date(year, month, cell)))}
-                      disabledPast={compareIso(toIsoDate(new Date(year, month, cell)), todayIso()) < 0}
-                      selectedStart={a}
-                      selectedEnd={b}
-                      inRange={inPreviewRange(toIsoDate(new Date(year, month, cell)))}
-                      onClick={() => handleDayClick(cell)}
-                    />
+            {blockedLoading ? (
+              <div
+                className="absolute inset-0 z-[5] flex items-center justify-center rounded-md bg-bg-card/80 text-center text-[11px] font-medium text-text-muted backdrop-blur-sm"
+                role="status"
+                aria-live="polite"
+              >
+                Dolu günler yükleniyor…
+              </div>
+            ) : null}
+            <div className={blockedLoading ? "pointer-events-none opacity-45" : ""}>
+              <div
+                className={`grid grid-cols-7 gap-0 text-center text-[9px] font-medium uppercase tracking-wide text-text-muted/90 ${tight ? "lg:text-[7px]" : "lg:text-[8px]"}`}
+              >
+                {WEEKDAYS_TR.map((w) => (
+                  <div key={w} className={`py-1 ${tight ? "lg:py-0.5" : "lg:py-0.5"}`}>
+                    {w}
                   </div>
-                ),
-              )}
+                ))}
+              </div>
+              <div className="mt-0.5 grid max-w-full grid-cols-7 gap-0 divide-x divide-y divide-border-subtle/55 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-raised/15 dark:bg-bg-deep/25">
+                {cells.map((cell, i) =>
+                  cell == null ? (
+                    <div key={`e-${i}`} className="aspect-square min-w-0 bg-bg-deep/5 dark:bg-bg-deep/20" aria-hidden />
+                  ) : (
+                    <div key={`${year}-${month}-${cell}`} className="aspect-square min-w-0">
+                      <AvailabilityCalendarDay
+                        embedded={tight}
+                        day={cell}
+                        iso={toIsoDate(new Date(year, month, cell))}
+                        blocked={blocked.has(toIsoDate(new Date(year, month, cell)))}
+                        disabledPast={compareIso(toIsoDate(new Date(year, month, cell)), todayIso()) < 0}
+                        selectedStart={a}
+                        selectedEnd={b}
+                        inRange={inPreviewRange(toIsoDate(new Date(year, month, cell)))}
+                        onClick={() => handleDayClick(cell)}
+                      />
+                    </div>
+                  ),
+                )}
+              </div>
             </div>
           </motion.div>
         </AnimatePresence>

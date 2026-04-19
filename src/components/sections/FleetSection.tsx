@@ -8,7 +8,17 @@ import { VehicleCard } from "@/components/vehicle/VehicleCard";
 
 const previewCount = 4;
 
-export function FleetSection({ vehicles = [] }: { vehicles?: FleetVehicle[] }) {
+export function FleetSection({
+  vehicles = [],
+  exploreHref = "/araclar",
+  vehicleCardQuerySuffix = "",
+}: {
+  vehicles?: FleetVehicle[];
+  /** “Tümünü gör” hedefi (örn. `/araclar?alis=…`) */
+  exploreHref?: string;
+  /** Araç kartı → detay linkine eklenecek sorgu (`alis=…` vb.) */
+  vehicleCardQuerySuffix?: string;
+}) {
   const preview = vehicles.slice(0, previewCount);
 
   return (
@@ -26,7 +36,7 @@ export function FleetSection({ vehicles = [] }: { vehicles?: FleetVehicle[] }) {
       <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
         {preview.map((car, index) => (
           <Reveal key={car.id} delay={index * 0.06} y={24}>
-            <VehicleCard vehicle={car} querySuffix="" />
+            <VehicleCard vehicle={car} querySuffix={vehicleCardQuerySuffix} />
           </Reveal>
         ))}
       </div>
@@ -38,7 +48,7 @@ export function FleetSection({ vehicles = [] }: { vehicles?: FleetVehicle[] }) {
         viewport={{ once: true }}
       >
         <Link
-          href="/araclar"
+          href={exploreHref}
           className="inline-flex min-h-11 items-center rounded-md border border-border-subtle bg-bg-card px-6 text-[13px] font-semibold text-text shadow-sm transition-colors hover:border-navy-hero/25 hover:bg-bg-raised"
         >
           Tümünü gör ({vehicles.length})

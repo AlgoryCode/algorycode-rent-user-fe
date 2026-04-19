@@ -15,7 +15,8 @@ import {
 } from "react";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import type { FleetVehicle } from "@/data/fleet";
-import { blockedDaysInInclusiveRange, blockedSetForVehicle } from "@/data/availability";
+import { blockedDaysInInclusiveRange } from "@/data/availability";
+import { useVehicleBlockedIsoDates } from "@/hooks/useVehicleBlockedIsoDates";
 import { getLocationById, pickupLocations } from "@/data/locations";
 import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
 import { compareIso } from "@/lib/calendarGrid";
@@ -590,7 +591,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       ? ret
       : toIsoDate(addDays(parseIsoDate(pickupForCalendar)!, 3));
 
-  const bookingCalendarBlocked = useMemo(() => blockedSetForVehicle(vehicle.id), [vehicle.id]);
+  const { blocked: bookingCalendarBlocked, loading: bookingCalendarBlockedLoading } =
+    useVehicleBlockedIsoDates(vehicle.id);
   const bookingCalendarMaxIso = useMemo(() => toIsoDate(addDays(new Date(), 365)), []);
 
   const pickupLocationSelectOptions = useMemo(() => {
@@ -1130,8 +1132,13 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         return false;
       }
     }
-    const blocked = blockedSetForVehicle(vehicle.id);
-    const overlap = blockedDaysInInclusiveRange(pickup, ret, blocked);
+    if (bookingCalendarBlockedLoading && uuidLikeRe.test(vehicle.id)) {
+      setErrors({
+        dates: "Dolu günler yükleniyor; lütfen birkaç saniye sonra tekrar deneyin.",
+      });
+      return false;
+    }
+    const overlap = blockedDaysInInclusiveRange(pickup, ret, bookingCalendarBlocked);
     if (overlap.length > 0) {
       const fmt = overlap.slice(0, 3).map((d) =>
         parseIsoDate(d)!.toLocaleDateString("tr-TR", { day: "numeric", month: "short" }),
@@ -1519,6 +1526,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           pickupDate={pickupForCalendar}
                           returnDate={returnForCalendar}
                           blockedDates={bookingCalendarBlocked}
+                          blockedDatesLoading={bookingCalendarBlockedLoading}
                           onValidateRange={(p, r) =>
                             compareIso(r, p) <= 0
                               ? "Teslim günü alıştan en az 1 gün sonra olmalı."

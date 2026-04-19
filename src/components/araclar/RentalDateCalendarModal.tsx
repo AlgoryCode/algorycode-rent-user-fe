@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
-import { blockedSetForVehicle } from "@/data/availability";
+import { useVehicleBlockedIsoDates } from "@/hooks/useVehicleBlockedIsoDates";
 import { compareIso } from "@/lib/calendarGrid";
 import { addDays, todayIso, toIsoDate } from "@/lib/dates";
 
@@ -26,7 +26,7 @@ export function RentalDateCalendarModal({
   vehicleId,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const blocked = useMemo(() => blockedSetForVehicle(vehicleId ?? null), [vehicleId]);
+  const { blocked, loading: blockedLoading } = useVehicleBlockedIsoDates(vehicleId ?? null);
   const maxIso = useMemo(() => toIsoDate(addDays(new Date(), 365)), []);
 
   useEffect(() => setMounted(true), []);
@@ -80,6 +80,7 @@ export function RentalDateCalendarModal({
                 pickupDate={pickup}
                 returnDate={returnDate}
                 blockedDates={blocked}
+                blockedDatesLoading={blockedLoading}
                 onValidateRange={(p, r) =>
                   compareIso(r, p) <= 0 ? "Teslim günü alıştan en az 1 gün sonra olmalı." : null
                 }

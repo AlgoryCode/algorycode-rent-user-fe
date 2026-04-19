@@ -25,15 +25,26 @@ export const vehicleBlockedDates: Record<string, string[]> = {
   "6": [fromToday(6), fromToday(13), fromToday(14), fromToday(27)],
 };
 
+/**
+ * Demo takvim dolulukları.
+ * - `vehicleId` yok: filo demosu — tüm demo araçların dolu günleri birleşik (eski “genel takvim” davranışı).
+ * - `vehicleId` demo anahtarlarından biri: yalnızca o aracın demo dolu günleri.
+ * - `vehicleId` bilinen demo dışında (ör. gerçek API UUID): boş küme; gerçek doluluk
+ *   `GET /vehicles/{id}/calendar/occupancy` üzerinden `useVehicleBlockedIsoDates` ile doldurulur.
+ */
 export function blockedSetForVehicle(vehicleId: string | null | undefined): Set<string> {
   const set = new Set<string>();
-  if (vehicleId && vehicleBlockedDates[vehicleId]) {
-    vehicleBlockedDates[vehicleId].forEach((d) => set.add(d));
+  const id = vehicleId?.trim() ?? "";
+  if (!id) {
+    Object.values(vehicleBlockedDates)
+      .flat()
+      .forEach((d) => set.add(d));
     return set;
   }
-  Object.values(vehicleBlockedDates)
-    .flat()
-    .forEach((d) => set.add(d));
+  const dates = vehicleBlockedDates[id];
+  if (dates) {
+    dates.forEach((d) => set.add(d));
+  }
   return set;
 }
 

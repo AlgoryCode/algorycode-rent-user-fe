@@ -1,4 +1,6 @@
 import { getRentGatewayAxios } from "@/lib/gatewayAxios";
+import type { FleetAvailabilityQuery } from "@/lib/fleetAvailabilityQuery";
+import { fleetAvailabilityToSearchParams } from "@/lib/fleetAvailabilityQuery";
 
 type ApiMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -93,9 +95,21 @@ export type CreateRentalRequestFormPayload = {
   }[];
 };
 
-export async function fetchHandoverLocationsFromRentApi(kind?: "PICKUP" | "RETURN") {
-  const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-  return apiRequest<RentHandoverLocationDto[]>(`/handover-locations${q}`, "GET");
+export async function fetchHandoverLocationsFromRentApi(
+  opts?:
+    | "PICKUP"
+    | "RETURN"
+    | { kind?: "PICKUP" | "RETURN"; includeInactive?: boolean },
+) {
+  const p = new URLSearchParams();
+  if (typeof opts === "string") {
+    p.set("kind", opts);
+  } else if (opts && typeof opts === "object") {
+    if (opts.kind) p.set("kind", opts.kind);
+    if (opts.includeInactive) p.set("includeInactive", "true");
+  }
+  const suf = p.toString() ? `?${p.toString()}` : "";
+  return apiRequest<RentHandoverLocationDto[]>(`/handover-locations${suf}`, "GET");
 }
 
 export type HandoverPricingQuoteDto = {
@@ -125,8 +139,11 @@ export async function fetchReservationExtraOptionsFromRentApi() {
   return apiRequest<ReservationExtraOptionTemplateDto[]>("/reservation-extra-options", "GET");
 }
 
-export async function fetchVehiclesFromRentApi() {
-  return apiRequest<RentVehicleDto[]>("/vehicles", "GET");
+export async function fetchVehiclesFromRentApi(availability?: FleetAvailabilityQuery) {
+  const suffix = availability
+    ? `?${fleetAvailabilityToSearchParams(availability).toString()}`
+    : "";
+  return apiRequest<RentVehicleDto[]>(`/vehicles${suffix}`, "GET");
 }
 
 export async function fetchVehicleByIdFromRentApi(id: string) {
@@ -172,6 +189,30 @@ export async function replaceVehicleImageSlotOnRentApi(id: string, slot: string,
 
 export async function deleteVehicleImageSlotOnRentApi(id: string, slot: string) {
   return apiRequest<RentVehicleDto>(`/vehicles/${encodeURIComponent(id)}/images/${encodeURIComponent(slot)}`, "DELETE");
+}
+
+export type VehicleOccupancySource = "rental" | "rental_request";
+
+export type VehicleOccupancyRangeDto = {
+  id: string;
+  source: VehicleOccupancySource;
+  startDate: string;
+  endDate: string;
+};
+
+/** Rent API: iptal olmayan kiralamalar + pending/approved talepler (takvim birleşik doluluk). */
+export type VehicleCalendarOccupancyDto = {
+  from: string;
+  to: string;
+  ranges: VehicleOccupancyRangeDto[];
+};
+
+export async function fetchVehicleCalendarOccupancyFromRentApi(vehicleId: string, from: string, to: string) {
+  const q = new URLSearchParams({ from, to });
+  return apiRequest<VehicleCalendarOccupancyDto>(
+    `/vehicles/${encodeURIComponent(vehicleId)}/calendar/occupancy?${q.toString()}`,
+    "GET",
+  );
 }
 
 export async function fetchRentalsFromRentApi(query?: {
@@ -237,8 +278,11 @@ export async function deleteCustomerRecordOnRentApi(recordKey: string) {
   return apiRequest<RentCustomerRecordDeletionDto>(`/customer-records/${encodeURIComponent(recordKey)}`, "DELETE");
 }
 
-export async function fetchRentalRequestsFromRentApi() {
-  return apiRequest<RentRentalRequestDto[]>("/rental-requests", "GET");
+export async function fetchRentalRequestsFromRentApi(params?: { vehicleId?: string }) {
+  const q = new URLSearchParams();
+  if (params?.vehicleId) q.set("vehicleId", params.vehicleId);
+  const suffix = q.toString();
+  return apiRequest<RentRentalRequestDto[]>(`/rental-requests${suffix ? `?${suffix}` : ""}`, "GET");
 }
 
 export async function createRentalRequestOnRentApi(payload: CreateRentalRequestFormPayload) {

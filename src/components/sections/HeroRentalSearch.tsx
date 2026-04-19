@@ -2,9 +2,11 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { compareIso } from "@/lib/calendarGrid";
 import { pickupLocations } from "@/data/locations";
+import type { HeroHandoverOption } from "@/lib/handoverLocations";
 import { addDays, parseIsoDate, toIsoDate } from "@/lib/dates";
 import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
 import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
@@ -47,25 +49,99 @@ function MobileDivider() {
   return <div className="h-px w-full shrink-0 bg-neutral-200/80 dark:bg-white/10" aria-hidden />;
 }
 
-export function HeroRentalSearch({ className = "" }: { className?: string }) {
+function staticPickupFallback(): HeroHandoverOption[] {
+  return pickupLocations.map((l) => {
+    const id = (l.rentPickupHandoverId ?? l.id).trim() || l.id;
+    return { id, label: l.label, countryCode: l.countryCode };
+  });
+}
+
+function initialPickupId(apiPick: HeroHandoverOption[]): string {
+  const list = apiPick.length > 0 ? apiPick : staticPickupFallback();
+  return list[0]?.id ?? "";
+}
+
+function initialReturnId(
+  from: string,
+  apiRet: HeroHandoverOption[],
+  apiPick: HeroHandoverOption[],
+): string {
+  const ret =
+    apiRet.length > 0 ? apiRet : apiPick.length > 0 ? apiPick : staticPickupFallback();
+  return ret.find((r) => r.id !== from)?.id ?? ret[0]?.id ?? from;
+}
+
+export type HeroRentalSearchProps = {
+  className?: string;
+  pickupHandoverOptions: HeroHandoverOption[];
+  returnHandoverOptions: HeroHandoverOption[];
+};
+
+export function HeroRentalSearch({
+  className = "",
+  pickupHandoverOptions,
+  returnHandoverOptions,
+}: HeroRentalSearchProps) {
   const router = useRouter();
-  const [fromId, setFromId] = useState(pickupLocations[0]!.id);
-  const [toId, setToId] = useState(pickupLocations[1]?.id ?? pickupLocations[0]!.id);
+  const [fromId, setFromId] = useState(() => initialPickupId(pickupHandoverOptions));
+  const [toId, setToId] = useState(() =>
+    initialReturnId(
+      initialPickupId(pickupHandoverOptions),
+      returnHandoverOptions,
+      pickupHandoverOptions,
+    ),
+  );
   const [pickupDate, setPickupDate] = useState(() => toIsoDate(addDays(new Date(), 1)));
   const [returnDate, setReturnDate] = useState(() => toIsoDate(addDays(new Date(), 2)));
   const [pickupTime, setPickupTime] = useState("10:00");
   const [returnTime, setReturnTime] = useState("10:00");
   const [differentDropoff, setDifferentDropoff] = useState(false);
 
-  const locationOptions = useMemo(
+  const pickupOptions = useMemo(() => {
+    if (pickupHandoverOptions.length > 0) return pickupHandoverOptions;
+    return staticPickupFallback();
+  }, [pickupHandoverOptions]);
+
+  const returnOptions = useMemo(() => {
+    if (returnHandoverOptions.length > 0) return returnHandoverOptions;
+    return pickupOptions;
+  }, [returnHandoverOptions, pickupOptions]);
+
+  const pickupSelectOptions = useMemo(
     () =>
-      pickupLocations.map((l) => ({
+      pickupOptions.map((l) => ({
         value: l.id,
         label: shortLocationLabel(l.label),
         right: l.countryCode,
       })),
-    [],
+    [pickupOptions],
   );
+
+  const returnSelectOptions = useMemo(
+    () =>
+      returnOptions.map((l) => ({
+        value: l.id,
+        label: shortLocationLabel(l.label),
+        right: l.countryCode,
+      })),
+    [returnOptions],
+  );
+
+  /** Props/stream sonrası seçili id listede yoksa (ör. önce [], sonra API) state düzelt. */
+  useEffect(() => {
+    if (pickupOptions.length === 0) return;
+    setFromId((prev) => (pickupOptions.some((o) => o.id === prev) ? prev : pickupOptions[0]!.id));
+  }, [pickupOptions]);
+
+  useEffect(() => {
+    if (returnOptions.length === 0) return;
+    setToId((prev) => {
+      if (!differentDropoff) return fromId;
+      return returnOptions.some((o) => o.id === prev)
+        ? prev
+        : (returnOptions.find((r) => r.id !== fromId)?.id ?? returnOptions[0]!.id ?? fromId);
+    });
+  }, [returnOptions, differentDropoff, fromId]);
 
   const maxSearchDate = useMemo(() => toIsoDate(addDays(new Date(), 400)), []);
 
@@ -81,7 +157,16 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
 
   const handleDifferentDropoff = (different: boolean) => {
     setDifferentDropoff(different);
-    if (!different) setToId(fromId);
+    if (!different) {
+      setToId(fromId);
+      return;
+    }
+    setToId((prev) => {
+      if (prev !== fromId) return prev;
+      return (
+        returnOptions.find((r) => r.id !== fromId)?.id ?? returnOptions[0]?.id ?? fromId
+      );
+    });
   };
 
   const teslimForSearch = useMemo(() => {
@@ -91,15 +176,28 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
   }, [pickupDate, returnDate]);
 
   const submit = () => {
+    const pick = pickupOptions.find((o) => o.id === fromId) ?? pickupOptions[0];
+    const fromVal = pick?.id?.trim() ?? "";
+    if (!fromVal) {
+      toast.error("Alış noktası seçin.");
+      return;
+    }
+    const toVal = differentDropoff
+      ? (returnOptions.find((o) => o.id === toId) ?? returnOptions.find((r) => r.id !== fromVal) ?? returnOptions[0])
+          ?.id?.trim() || fromVal
+      : fromVal;
     const params = new URLSearchParams();
-    params.set("lokasyon", fromId);
-    params.set("lokasyonTeslim", differentDropoff ? toId : fromId);
-    params.set("baslangicKonum", fromId);
+    params.set("lokasyon", fromVal);
+    params.set("lokasyonTeslim", toVal);
+    params.set("baslangicKonum", fromVal);
     params.set("alis", pickupDate);
     params.set("alis_saat", pickupTime);
     params.set("teslim", teslimForSearch);
     params.set("teslim_saat", returnTime);
-    router.push(`/araclar?${params.toString()}`);
+    const qs = params.toString();
+    startTransition(() => {
+      router.push(`/araclar?${qs}`);
+    });
   };
 
   const minDate = toIsoDate(addDays(new Date(), 0));
@@ -119,7 +217,7 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
             <RentSelect
               value={fromId}
               onChange={handleFromChange}
-              options={locationOptions}
+              options={pickupSelectOptions}
               ariaLabel="Alış yeri"
               className="w-full min-w-0"
               triggerClassName={barLocationTrigger}
@@ -146,7 +244,7 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
                   <RentSelect
                     value={toId}
                     onChange={setToId}
-                    options={locationOptions}
+                    options={returnSelectOptions}
                     ariaLabel="Bırakış yeri"
                     className="w-full min-w-0"
                     triggerClassName={barLocationTrigger}
@@ -203,7 +301,7 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
             <RentSelect
               value={fromId}
               onChange={handleFromChange}
-              options={locationOptions}
+              options={pickupSelectOptions}
               ariaLabel="Alış yeri"
               className="w-full min-w-0"
               triggerClassName={barLocationTrigger}
@@ -227,7 +325,7 @@ export function HeroRentalSearch({ className = "" }: { className?: string }) {
                   <RentSelect
                     value={toId}
                     onChange={setToId}
-                    options={locationOptions}
+                    options={returnSelectOptions}
                     ariaLabel="Bırakış yeri"
                     className="w-full min-w-0"
                     triggerClassName={barLocationTrigger}
