@@ -1,3 +1,5 @@
+import axios from "axios";
+
 import { clearBffBearerCache } from "@/lib/bff-access-token";
 
 export type AuthUserProfile = {
@@ -69,22 +71,18 @@ function setClientCookie(name: string, value: string, maxAgeSeconds: number) {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
 }
 
-/** Access JWT: mevcut isimler + gateway’in okuduğu {@code algory_access_token}. */
+/** Access JWT — yalnızca {@code accessToken} (httpOnly olmayan yedek senaryolar). */
 export function setClientAccessToken(token: string, days = 7) {
   if (typeof document === "undefined" || !token) return;
   const maxAge = Math.max(60, Math.floor(days * 24 * 60 * 60));
-  setClientCookie("access_token", token, maxAge);
   setClientCookie("accessToken", token, maxAge);
-  setClientCookie("algory_access_token", token, maxAge);
 }
 
-/** Refresh token: rent-fe / gateway ile aynı çerez adları (httpOnly değil; JS’ten set). */
+/** Refresh — yalnızca {@code refreshToken}. */
 export function setClientRefreshToken(token: string, days = 30) {
   if (typeof document === "undefined" || !token) return;
   const maxAge = Math.max(60, Math.floor(days * 24 * 60 * 60));
-  setClientCookie("refresh_token", token, maxAge);
   setClientCookie("refreshToken", token, maxAge);
-  setClientCookie("algory_refresh_token", token, maxAge);
 }
 
 export function getClientRefreshToken(): string | null {
@@ -122,7 +120,7 @@ export function clearLocalAuthProfile() {
 /** BFF httpOnly çerezlerini sunucuda siler + yerel profil. */
 export async function clearClientAuthSession(): Promise<void> {
   if (typeof window !== "undefined") {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
+    await axios.post("/api/auth/logout", {}, { withCredentials: true, validateStatus: () => true }).catch(() => undefined);
   }
   clearLocalAuthProfile();
 }

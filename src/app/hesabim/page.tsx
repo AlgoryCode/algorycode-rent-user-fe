@@ -18,11 +18,16 @@ import {
   type TwoFactorSetupResponse,
 } from "@/lib/authApi";
 import { resolveBffAccessToken } from "@/lib/bff-access-token";
-import { clearClientAuthSession, getStoredAuthUser, readUserIdFromJwt, setStoredAuthUser } from "@/lib/authSession";
+import { getStoredAuthUser, readUserIdFromJwt, setStoredAuthUser } from "@/lib/authSession";
 import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/rentApi";
 import { compareIso } from "@/lib/calendarGrid";
 import { formatTrDate, formatTrDateTime } from "@/lib/dates";
-import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from "@/components/ui/Icons";
+import {
+  CalendarDaysIcon,
+  Cog6ToothIcon,
+  MagnifyingGlassIcon,
+  UserCircleNavIcon,
+} from "@/components/ui/Icons";
 import { rentSoftSearchShellClass } from "@/components/ui/rentFeSurfaces";
 
 type AccountTab = "profil" | "guvenlik" | "bildirim" | "tercihler" | "rezervasyonlar";
@@ -108,7 +113,7 @@ function HesabimPageContent() {
   const [sessionChecked, setSessionChecked] = useState(false);
 
   const activeSection = useMemo(() => parseAccountSection(searchParams), [searchParams]);
-  const isListView = activeSection === null;
+  const effectiveSection: AccountTab = activeSection ?? "profil";
 
   const openSection = useCallback(
     (id: AccountTab) => {
@@ -120,13 +125,15 @@ function HesabimPageContent() {
     [router, searchParams],
   );
 
-  const closeToList = useCallback(() => {
+  /** Liste görünümü kalktı; doğrudan bir bölüm gösterilsin diye URL’ye `section=profil` yazar. */
+  useEffect(() => {
+    if (loading || !profile) return;
+    if (activeSection !== null) return;
     const next = new URLSearchParams(searchParams.toString());
-    next.delete("section");
     next.delete("tab");
-    const q = next.toString();
-    router.replace(q ? `/hesabim?${q}` : "/hesabim", { scroll: false });
-  }, [router, searchParams]);
+    next.set("section", "profil");
+    router.replace(`/hesabim?${next.toString()}`, { scroll: false });
+  }, [loading, profile, activeSection, router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,7 +206,8 @@ function HesabimPageContent() {
 
   useEffect(() => {
     const loadReservations = async () => {
-      if (!auth || !profile || activeSection !== "rezervasyonlar") return;
+      const section = activeSection ?? "profil";
+      if (!auth || !profile || section !== "rezervasyonlar") return;
       setReservationsLoading(true);
       setReservationsError(null);
       try {
@@ -239,7 +247,7 @@ function HesabimPageContent() {
   if (!sessionChecked) {
     return (
       <SiteLayout>
-        <main className="mx-auto max-w-xl px-4 pb-20 pt-28 text-center sm:px-6">
+        <main className="mx-auto max-w-xl px-4 pb-20 pt-[var(--header-h)] text-center sm:px-6">
           <h1 className="text-2xl font-semibold text-text">Hesabım</h1>
           <p className="mt-6 text-sm text-text-muted">Oturum kontrol ediliyor…</p>
         </main>
@@ -250,10 +258,10 @@ function HesabimPageContent() {
   if (!auth) {
     return (
       <SiteLayout>
-        <main className="mx-auto max-w-xl px-4 pb-20 pt-28 text-center sm:px-6">
+        <main className="mx-auto max-w-xl px-4 pb-20 pt-[var(--header-h)] text-center sm:px-6">
           <h1 className="text-2xl font-semibold text-text">Hesabım</h1>
           <p className="mt-3 text-sm text-text-muted">Bu alanı görmek için giriş yapmalısın.</p>
-          <Link href="/giris-yap?next=/hesabim" className="mt-6 inline-flex rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg">
+          <Link href="/giris-yap?next=/hesabim" className="mt-6 inline-flex rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg">
             Giriş Yap
           </Link>
         </main>
@@ -364,114 +372,95 @@ function HesabimPageContent() {
   const filteredRentals = filterReservationRows(rentalRows, reservationQuery, reservationFrom, reservationTo);
   const filteredRequests = filterReservationRows(requestRows, reservationQuery, reservationFrom, reservationTo);
 
-  const sectionMeta = activeSection ? (ACCOUNT_NAV.find((x) => x.id === activeSection) ?? null) : null;
-
   return (
     <SiteLayout>
-      <main className="mx-auto w-full max-w-2xl px-4 pb-24 pt-28 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-text">Hesabım</h1>
-            <p className="mt-2 text-sm text-text-muted">
-              {isListView ? (
-                "Hesap ayarlarını buradan yönet."
-              ) : (
-                <>
-                  <span className="text-text-muted">Ayarlar</span>
-                  <span className="mx-2 text-border-subtle" aria-hidden>
-                    /
-                  </span>
-                  <span className="font-medium text-text">{sectionMeta?.title ?? "Detay"}</span>
-                </>
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              void (async () => {
-                await clearClientAuthSession();
-                router.push("/");
-              })();
-            }}
-            className="rounded-lg border border-border-subtle/90 bg-transparent px-4 py-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/70 dark:hover:bg-white/[0.05]"
+      <main className="flex min-h-0 w-full flex-1 flex-col-reverse pt-[var(--header-h)] lg:flex-row lg:items-stretch">
+        {!loading && profile ? (
+          <aside
+            className="flex min-h-0 w-full shrink-0 flex-col overflow-visible border-border-subtle/60 bg-bg-raised/[0.35] px-0 py-6 dark:bg-white/[0.03] sm:py-8 lg:w-72 lg:max-w-[min(100%,20rem)] lg:self-stretch lg:border-b-0 lg:border-r lg:py-0 xl:w-80"
+            aria-label="Hesap menüsü"
           >
-            Çıkış yap
-          </button>
-        </div>
-
-        {loading && <p className="mt-6 text-sm text-text-muted">Yükleniyor...</p>}
-        {error && <p className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>}
-
-        {!loading && profile && (
-          <div className="relative mt-10 min-h-0 overflow-hidden">
-            {isListView ? (
-              <div role="navigation" aria-label="Ayarlar listesi" className="mx-auto max-w-lg">
-                  <ul className="divide-y divide-border-subtle/60 overflow-hidden rounded-2xl border border-black/[0.06] bg-bg-card/60 shadow-sm dark:border-white/[0.08]">
-                    {ACCOUNT_NAV.map((item) => (
-                      <li key={item.id}>
-                        <button
-                          type="button"
-                          onClick={() => openSection(item.id)}
-                          className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors duration-200 hover:bg-black/[0.06] sm:px-5 dark:hover:bg-white/[0.08]"
-                        >
-                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="text-[15px] font-medium tracking-tight text-text">{item.title}</span>
-                            {item.description ? (
-                              <span className="text-xs leading-snug text-text-muted">{item.description}</span>
-                            ) : null}
-                          </span>
-                          <ChevronRightIcon className="size-[18px] shrink-0 text-text-muted/70" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+            <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:min-h-0">
+              <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle/50 px-4 py-4 sm:px-6 lg:px-5">
+                <div
+                  className="flex size-10 shrink-0 items-center justify-center bg-accent/15 text-sm font-bold text-accent"
+                  aria-hidden
+                >
+                  {(profile.firstName?.[0] || profile.email?.[0] || "?").toLocaleUpperCase("tr-TR")}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text">
+                    {[profile.firstName, profile.lastName].filter(Boolean).join(" ").trim() || "Hesap"}
+                  </p>
+                  <p className="truncate text-xs text-text-muted">{profile.email}</p>
+                </div>
               </div>
-            ) : (
-              <div className="w-full">
-                  <button
-                    type="button"
-                    onClick={closeToList}
-                    className="mb-6 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-text-muted transition-colors duration-200 hover:bg-bg-raised/70 dark:hover:bg-white/[0.06]"
-                  >
-                    <ChevronLeftIcon className="size-[18px] shrink-0" />
-                    Ayarlara dön
-                  </button>
-                  {sectionMeta ? (
-                    sectionMeta.description ? (
-                      <header className="mb-8 border-b border-border-subtle/70 pb-6">
-                        <h2 className="sr-only">{sectionMeta.title}</h2>
-                        <p className="text-sm leading-relaxed text-text-muted">{sectionMeta.description}</p>
-                      </header>
-                    ) : (
-                      <h2 className="sr-only">{sectionMeta.title}</h2>
-                    )
-                  ) : null}
-                  <div className="space-y-6">
-            {activeSection === "profil" && (
-              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+              <nav className="mt-0 flex min-h-0 flex-1 flex-col border-b border-border-subtle/45 lg:border-b-0">
+                {ACCOUNT_NAV.map((item) => {
+                  const active = effectiveSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openSection(item.id)}
+                      aria-current={active ? "page" : undefined}
+                      className={`flex w-full items-center gap-3 border-b border-border-subtle/45 px-4 py-3 text-left text-sm transition-colors duration-150 last:border-b-0 sm:px-6 lg:px-5 ${
+                        active
+                          ? "bg-accent/14 font-semibold text-text dark:bg-accent/[0.14]"
+                          : "text-text-muted hover:bg-bg-card/70 hover:text-text dark:hover:bg-white/[0.05]"
+                      }`}
+                    >
+                      <span className={`shrink-0 ${active ? "text-accent" : "text-text-muted"}`}>
+                        <AccountNavLeadIcon id={item.id} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </aside>
+        ) : null}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-24 pt-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8 lg:pt-8 xl:px-12">
+          <div className="mx-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl xl:max-w-[42rem]">
+          <div className="border-b border-border-subtle/50 pb-5">
+            <h1 className="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Hesabım</h1>
+          </div>
+
+          {loading && <p className="mt-8 text-sm text-text-muted">Yükleniyor...</p>}
+          {error && (
+            <p className="mt-6 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">{error}</p>
+          )}
+
+          {!loading && profile && (
+            <div className="relative mt-6 flex min-h-0 flex-1 flex-col lg:mt-8">
+            <div className="min-w-0 flex-1 lg:min-h-0">
+              <div className="space-y-6">
+            {effectiveSection === "profil" && (
+              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-text-muted">Ad
-                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">Soyad
-                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">E-posta
-                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">Telefon
-                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
                   </label>
                 </div>
-                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
+                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">
                   {saving ? "Kaydediliyor..." : "Profili Kaydet"}
                 </button>
               </section>
             )}
 
-            {activeSection === "tercihler" && (
-              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+            {effectiveSection === "tercihler" && (
+              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                 <div>
                   <p className="text-sm font-medium text-text">Görünüm</p>
                   <p className="mt-0.5 text-xs text-text-muted">Arayüzü gece veya gündüz modunda kullanın.</p>
@@ -480,7 +469,7 @@ function HesabimPageContent() {
                       type="button"
                       onClick={() => setTheme("light")}
                       className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
-                        theme === "light" ? "bg-accent text-accent-fg" : "text-text-muted hover:bg-bg-raised/80"
+                        theme === "light" ? "bg-btn-solid text-btn-solid-fg" : "text-text-muted hover:bg-bg-raised/80"
                       }`}
                     >
                       Gündüz
@@ -489,7 +478,7 @@ function HesabimPageContent() {
                       type="button"
                       onClick={() => setTheme("dark")}
                       className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
-                        theme === "dark" ? "bg-accent text-accent-fg" : "text-text-muted hover:bg-bg-raised/80"
+                        theme === "dark" ? "bg-btn-solid text-btn-solid-fg" : "text-text-muted hover:bg-bg-raised/80"
                       }`}
                     >
                       Gece
@@ -499,8 +488,8 @@ function HesabimPageContent() {
               </section>
             )}
 
-            {activeSection === "bildirim" && (
-              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+            {effectiveSection === "bildirim" && (
+              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <ToggleItem label="Önemli e-postalar" checked={notifyEmailImportant} onChange={setNotifyEmailImportant} />
                   <ToggleItem label="Tarama alarmları" checked={notifyScanAlerts} onChange={setNotifyScanAlerts} />
@@ -508,16 +497,16 @@ function HesabimPageContent() {
                   <ToggleItem label="Pazarlama e-postaları" checked={notifyMarketingEmails} onChange={setNotifyMarketingEmails} />
                   <ToggleItem label="Tarayıcı push" checked={notifyPushBrowser} onChange={setNotifyPushBrowser} />
                 </div>
-                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
+                <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">
                   {saving ? "Kaydediliyor..." : "Tercihleri Kaydet"}
                 </button>
               </section>
             )}
 
-            {activeSection === "rezervasyonlar" && (
-              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+            {effectiveSection === "rezervasyonlar" && (
+              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Link href="/araclar" className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-fg">
+                  <Link href="/araclar" className="rounded-lg bg-btn-solid px-3 py-2 text-xs font-semibold text-btn-solid-fg">
                     Yeni Rezervasyon Oluştur
                   </Link>
                 </div>
@@ -567,10 +556,10 @@ function HesabimPageContent() {
                     />
                   </div>
                   <label className="text-xs text-text-muted">Başlangıç
-                    <input type="date" value={reservationFrom} onChange={(e) => setReservationFrom(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2 text-sm text-text" />
+                    <input type="date" value={reservationFrom} onChange={(e) => setReservationFrom(e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2 text-sm text-text dark:border-border-subtle dark:bg-bg-card" />
                   </label>
                   <label className="text-xs text-text-muted">Bitiş
-                    <input type="date" value={reservationTo} onChange={(e) => setReservationTo(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2 text-sm text-text" />
+                    <input type="date" value={reservationTo} onChange={(e) => setReservationTo(e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2 text-sm text-text dark:border-border-subtle dark:bg-bg-card" />
                   </label>
                 </div>
 
@@ -627,7 +616,7 @@ function HesabimPageContent() {
                             <p className="text-xs text-text-muted mb-3">
                               Hayalinizdeki Aracı Keşfedin ve Unutulmaz Bir Yolculuğa Adım Atın!
                             </p>
-                            <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-fg hover:bg-accent/90">
+                            <Link href="/araclar" className="inline-flex items-center gap-2 rounded-lg bg-btn-solid px-4 py-2 text-xs font-semibold text-btn-solid-fg hover:brightness-110">
                               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                               </svg>
@@ -646,19 +635,19 @@ function HesabimPageContent() {
               </section>
             )}
 
-            {activeSection === "guvenlik" && (
+            {effectiveSection === "guvenlik" && (
               <div className="space-y-6">
-                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                   <h2 className="text-base font-semibold text-text">Şifre değiştir</h2>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <label className="text-xs text-text-muted">Mevcut şifre
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
                     </label>
                     <label className="text-xs text-text-muted">Yeni şifre
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                     </label>
                     <label className="text-xs text-text-muted">Yeni şifre (tekrar)
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={newPasswordRepeat} onChange={(e) => setNewPasswordRepeat(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={newPasswordRepeat} onChange={(e) => setNewPasswordRepeat(e.target.value)} />
                     </label>
                   </div>
                   <button type="button" onClick={() => void onChangePassword()} disabled={changingPw || !currentPassword || !newPassword || !newPasswordRepeat} className="mt-4 rounded-lg border border-border-subtle bg-transparent px-4 py-2.5 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/75 disabled:pointer-events-none disabled:opacity-60">
@@ -666,7 +655,7 @@ function HesabimPageContent() {
                   </button>
                 </section>
 
-                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
                   <h2 className="text-base font-semibold text-text">2FA (Authenticator)</h2>
                   <p className="mt-1 text-xs text-text-muted">Durum: {profile.twoFactorEnabled ? "Aktif" : "Pasif"}</p>
 
@@ -703,10 +692,10 @@ function HesabimPageContent() {
 
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                     <label className="text-xs text-text-muted">6 haneli kod
-                      <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" />
+                      <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" />
                     </label>
                     {!profile.twoFactorEnabled ? (
-                      <button type="button" onClick={() => void onActivate2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">
+                      <button type="button" onClick={() => void onActivate2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">
                         2FA Aktifleştir
                       </button>
                     ) : (
@@ -718,11 +707,12 @@ function HesabimPageContent() {
                 </section>
               </div>
             )}
-                  </div>
               </div>
-            )}
+            </div>
           </div>
         )}
+          </div>
+        </div>
       </main>
     </SiteLayout>
   );
@@ -733,10 +723,12 @@ export default function HesabimPage() {
     <Suspense
       fallback={
         <SiteLayout>
-          <main className="mx-auto max-w-xl px-4 pb-20 pt-28 sm:px-6">
-            <div className="h-8 w-36 animate-pulse rounded bg-border-subtle" />
-            <div className="mt-4 h-4 w-full max-w-md animate-pulse rounded bg-border-subtle" />
-            <div className="mt-8 h-72 animate-pulse rounded-xl bg-border-subtle/60" />
+          <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 pb-24 pt-[var(--header-h)] sm:px-6">
+            <div className="h-9 w-40 animate-pulse rounded-lg bg-border-subtle/80" />
+            <div className="flex flex-col gap-8 lg:flex-row">
+              <div className="h-80 w-full max-w-sm animate-pulse rounded-2xl bg-border-subtle/60 lg:shrink-0" />
+              <div className="min-h-64 flex-1 animate-pulse rounded-2xl bg-border-subtle/40" />
+            </div>
           </main>
         </SiteLayout>
       }
@@ -873,6 +865,40 @@ function filterReservationRows(rows: ReservationRow[], q: string, from: string, 
   });
 }
 
+function AccountNavLeadIcon({ id }: { id: AccountTab }) {
+  const cls = "size-[18px] shrink-0";
+  switch (id) {
+    case "profil":
+      return <UserCircleNavIcon className={cls} />;
+    case "guvenlik":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+          />
+        </svg>
+      );
+    case "bildirim":
+      return (
+        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.09V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+          />
+        </svg>
+      );
+    case "tercihler":
+      return <Cog6ToothIcon className={cls} />;
+    case "rezervasyonlar":
+      return <CalendarDaysIcon className={cls} />;
+    default:
+      return <UserCircleNavIcon className={cls} />;
+  }
+}
+
 function ToggleItem({
   label,
   checked,
@@ -888,7 +914,7 @@ function ToggleItem({
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition-colors ${checked ? "bg-accent" : "bg-border-subtle"}`}
+        className={`inline-flex h-6 w-11 items-center rounded-full p-1 transition-colors ${checked ? "bg-btn-solid" : "bg-border-subtle"}`}
         aria-pressed={checked}
       >
         <span className={`h-4 w-4 rounded-full bg-white transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`} />

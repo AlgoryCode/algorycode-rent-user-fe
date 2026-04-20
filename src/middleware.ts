@@ -12,8 +12,8 @@ export function middleware(request: NextRequest) {
   }
 
   const token =
-    request.cookies.get("algory_access_token")?.value?.trim() ||
     request.cookies.get("accessToken")?.value?.trim() ||
+    request.cookies.get("algory_access_token")?.value?.trim() ||
     "";
 
   if (!token) {

@@ -1,12 +1,10 @@
+import axios from "axios";
 import { NextResponse } from "next/server";
 
 import { getExpFromAccessToken } from "@/lib/auth-user";
-import {
-  COOKIE_MAX_AGE_SECONDS,
-  TWO_FACTOR_PENDING_COOKIE_MAX_AGE_SECONDS,
-  getAuthUpstreamUrl,
-} from "@/lib/auth-upstream";
+import { getAuthUpstreamUrl } from "@/lib/auth-upstream";
 import { applyRentFeRolesCookie } from "@/lib/rbac/role-cookie";
+import { setAuthCookies, setTwoFactorPendingCookie } from "@/lib/server/auth-cookies";
 
 type LoginBody = {
   email?: string;
@@ -24,16 +22,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "E-posta ve şifre gerekli" }, { status: 400 });
     }
 
-    const upstream = await fetch(`${getAuthUpstreamUrl()}/basicauth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(loginPayload),
-      cache: "no-store",
-    });
+    const upstream = await axios.post<Record<string, unknown>>(
+      `${getAuthUpstreamUrl()}/basicauth/login`,
+      loginPayload,
+      {
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        validateStatus: () => true,
+        timeout: 20_000,
+      },
+    );
 
-    const data = (await upstream.json().catch(async () => ({
-      message: await upstream.text().catch(() => "Giriş başarısız"),
-    }))) as Record<string, unknown> & {
+    const data = (typeof upstream.data === "object" && upstream.data != null ? upstream.data : {}) as Record<
+      string,
+      unknown
+    > & {
       message?: string;
       requiresTwoFactor?: boolean;
       twoFactorToken?: string;
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
       refresh_token?: string;
     };
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       return NextResponse.json(
         { message: typeof data?.message === "string" ? data.message : "Giriş başarısız" },
         { status: upstream.status || 401 },
@@ -65,14 +67,7 @@ export async function POST(req: Request) {
         },
         { status: 200 },
       );
-      const pendingOpts = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax" as const,
-        path: "/",
-        maxAge: TWO_FACTOR_PENDING_COOKIE_MAX_AGE_SECONDS,
-      };
-      response.cookies.set("algory_2fa_pending", String(data.twoFactorToken), pendingOpts);
+      setTwoFactorPendingCookie(response, String(data.twoFactorToken));
       return response;
     }
 
@@ -82,20 +77,10 @@ export async function POST(req: Request) {
 
     const response = NextResponse.json({ ...data, accessTokenExpiresAt }, { status: 200 });
 
-    const cookieOpts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      path: "/",
-      maxAge: COOKIE_MAX_AGE_SECONDS,
-    };
     if (typeof accessToken === "string" && accessToken) {
-      response.cookies.set("algory_access_token", accessToken, cookieOpts);
-      response.cookies.set("accessToken", accessToken, cookieOpts);
-    }
-    if (typeof refreshToken === "string" && refreshToken) {
-      response.cookies.set("algory_refresh_token", refreshToken, cookieOpts);
-      response.cookies.set("refreshToken", refreshToken, cookieOpts);
+      setAuthCookies(response, accessToken, typeof refreshToken === "string" ? refreshToken : undefined);
+    } else if (typeof refreshToken === "string" && refreshToken) {
+      setAuthCookies(response, undefined, refreshToken);
     }
     if (typeof accessToken === "string" && accessToken) {
       applyRentFeRolesCookie(response, accessToken, data as Record<string, unknown>);

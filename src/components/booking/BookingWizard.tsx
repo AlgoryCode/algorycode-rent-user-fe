@@ -1351,7 +1351,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         </div>
         <h1 className="mt-5 text-xl font-semibold text-text sm:text-2xl">Talebiniz alındı</h1>
         <p className="mt-3 text-sm text-text-muted">
-          Referans numaranız: <span className="font-mono text-base font-semibold text-accent sm:text-lg">{doneRef}</span>
+          Referans numaranız:{" "}
+          <span className="font-sans text-base font-semibold tabular-nums tracking-tight text-accent sm:text-lg">{doneRef}</span>
         </p>
         <p className="mt-3 text-sm text-text-muted">
           Concierge ekibimiz kimlik doğrulama ve ödeme bağlantısı için 30 dakika içinde sizi
@@ -1395,7 +1396,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                     }}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       isCurrent
-                        ? "bg-accent text-accent-fg"
+                        ? "bg-btn-solid text-btn-solid-fg"
                         : reachable
                           ? "border border-accent/40 text-accent hover:bg-accent/10"
                           : "cursor-not-allowed border border-border-subtle text-text-muted opacity-60"
@@ -1661,7 +1662,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
               <motion.button
                 type="button"
                 onClick={() => void goNext()}
-                className="ml-auto rounded-md bg-accent px-6 py-2.5 text-[13px] font-semibold text-accent-fg shadow-sm"
+                className="ml-auto rounded-md bg-btn-solid px-6 py-2.5 text-[13px] font-semibold text-btn-solid-fg shadow-sm"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
@@ -1833,7 +1834,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           type="button"
                           disabled={submitting}
                           onClick={() => void goNext()}
-                          className="w-full rounded-md bg-accent px-6 py-3 text-[13px] font-semibold text-accent-fg shadow-sm disabled:opacity-60"
+                          className="w-full rounded-md bg-btn-solid px-6 py-3 text-[13px] font-semibold text-btn-solid-fg shadow-sm disabled:opacity-60"
                           whileHover={{ scale: submitting ? 1 : 1.02 }}
                           whileTap={{ scale: submitting ? 1 : 0.98 }}
                         >

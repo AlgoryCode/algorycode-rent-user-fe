@@ -1,4 +1,5 @@
 import { clearBffBearerCache } from "@/lib/bff-access-token";
+import { getPanelSameOriginAxios } from "@/lib/panel-same-origin-axios";
 
 /** Araç sayfası misafir kapısı → `/rezervasyon` geçişinde sihirbazın aynı soruyu ardışık sormaması için URL işareti. */
 export const RENT_RESERVATION_GUEST_ACK_QUERY = "guestAck";
@@ -13,21 +14,19 @@ function isEmail(s: string) {
 export type EmailCheckResult = { exists: boolean; failOpen?: boolean };
 
 export async function checkEmailRegisteredOnBff(email: string): Promise<EmailCheckResult> {
-  const r = await fetch("/api/auth/check-email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ email: email.trim() }),
-  });
-  const j = (await r.json().catch(() => ({}))) as {
+  const { status, data: j } = await getPanelSameOriginAxios().post<{
     exists?: boolean;
     message?: string;
     failOpen?: boolean;
-  };
-  if (!r.ok) {
-    throw new Error(typeof j.message === "string" ? j.message : "E-posta kontrolü başarısız.");
+  }>(
+    "/api/auth/check-email",
+    { email: email.trim() },
+    { validateStatus: () => true },
+  );
+  if (status < 200 || status >= 300) {
+    throw new Error(typeof j?.message === "string" ? j.message : "E-posta kontrolü başarısız.");
   }
-  return { exists: Boolean(j.exists), failOpen: Boolean(j.failOpen) };
+  return { exists: Boolean(j?.exists), failOpen: Boolean(j?.failOpen) };
 }
 
 /** Misafir JWT yok; httpOnly `rent_guest_session` çerezi ({@code sid}, {@code email}). */
@@ -36,15 +35,13 @@ export async function startRentGuestSessionOnBff(email: string): Promise<void> {
   if (!isEmail(trimmed)) {
     throw new Error("Geçerli bir e-posta girin.");
   }
-  const r = await fetch("/api/rent/guest/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ email: trimmed }),
-  });
-  const j = (await r.json().catch(() => ({}))) as { message?: string };
-  if (!r.ok) {
-    throw new Error(typeof j.message === "string" ? j.message : "Misafir oturumu açılamadı.");
+  const { status, data: j } = await getPanelSameOriginAxios().post<{ message?: string }>(
+    "/api/rent/guest/session",
+    { email: trimmed },
+    { validateStatus: () => true },
+  );
+  if (status < 200 || status >= 300) {
+    throw new Error(typeof j?.message === "string" ? j.message : "Misafir oturumu açılamadı.");
   }
   clearBffBearerCache();
 }

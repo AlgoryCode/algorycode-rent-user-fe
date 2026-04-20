@@ -280,7 +280,7 @@ export function RentalAvailabilityCalendarPanel({
           {showPanelTitle !== false && (
             <h2
               id={headingId}
-              className={`min-w-0 flex-1 font-display text-base font-semibold text-text sm:text-lg ${tight ? "lg:text-sm" : "lg:text-[15px]"}`}
+              className={`min-w-0 flex-1 text-base font-semibold text-text sm:text-lg ${tight ? "lg:text-sm" : "lg:text-[15px]"}`}
             >
               {headTitle}
             </h2>
@@ -496,7 +496,7 @@ export function RentalAvailabilityCalendarPanel({
           <button
             type="button"
             onClick={apply}
-            className="ml-auto rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-fg shadow-md shadow-accent/20 transition-[filter] duration-150 hover:brightness-105 active:brightness-95 sm:px-5 sm:text-sm lg:px-3 lg:py-1.5 lg:text-[11px]"
+            className="ml-auto rounded-lg bg-btn-solid px-4 py-2 text-xs font-semibold text-btn-solid-fg shadow-md shadow-btn-solid/25 transition-[filter] duration-150 hover:brightness-105 active:brightness-95 sm:px-5 sm:text-sm lg:px-3 lg:py-1.5 lg:text-[11px]"
           >
             Uygula
           </button>
@@ -553,7 +553,7 @@ function AvailabilityCalendarDay({
     "border-0 bg-transparent text-text hover:bg-bg-raised/70 dark:hover:bg-bg-deep/55";
 
   const edgeCell =
-    "z-[1] border-0 bg-accent font-semibold text-accent-fg shadow-none hover:brightness-105";
+    "z-[1] border-0 bg-btn-solid font-semibold text-btn-solid-fg shadow-none hover:brightness-105";
 
   let stateClass: string;
   let cellLabel: "alis" | "teslim" | "ikisi" | null = null;

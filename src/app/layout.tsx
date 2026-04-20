@@ -26,7 +26,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" suppressHydrationWarning className={`${dmSans.variable} h-full min-h-dvh scroll-smooth antialiased`}>
+    <html
+      lang="tr"
+      suppressHydrationWarning
+      className={`${dmSans.variable} font-sans h-full min-h-dvh scroll-smooth antialiased`}
+    >
       <body className="font-sans min-h-dvh">
         <Script
           id="rent-theme-init"

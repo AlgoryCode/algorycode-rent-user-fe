@@ -72,7 +72,7 @@ function GirisYapPageContent() {
             Şifre
             <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">{loading ? "Giriş yapılıyor..." : "Giriş Yap"}</button>
+          <button type="submit" disabled={loading} className="w-full rounded-lg bg-btn-solid py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">{loading ? "Giriş yapılıyor..." : "Giriş Yap"}</button>
         </form>
 
         <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-bg-card/60 p-4">

@@ -1,23 +1,31 @@
+import axios from "axios";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { clearRentFeRolesCookie } from "@/lib/rbac/role-cookie";
-import { RENT_GUEST_SESSION_COOKIE } from "@/lib/server/rentGuestSessionCookie";
+import { getAuthUpstreamUrl } from "@/lib/auth-upstream";
+import { clearAuthCookies } from "@/lib/server/auth-cookies";
 
 export async function POST() {
-  const response = NextResponse.json({ ok: true });
-  const clearCookieOptions = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 0,
-  };
-  response.cookies.set("algory_access_token", "", clearCookieOptions);
-  response.cookies.set("algory_refresh_token", "", clearCookieOptions);
-  response.cookies.set("accessToken", "", clearCookieOptions);
-  response.cookies.set("refreshToken", "", clearCookieOptions);
-  response.cookies.set("algory_2fa_pending", "", clearCookieOptions);
-  clearRentFeRolesCookie(response);
-  response.cookies.set(RENT_GUEST_SESSION_COOKIE, "", clearCookieOptions);
+  try {
+    const cookieStore = await cookies();
+    const refreshToken =
+      cookieStore.get("refreshToken")?.value?.trim() ||
+      cookieStore.get("algory_refresh_token")?.value?.trim() ||
+      null;
+    if (refreshToken) {
+      await axios
+        .post(`${getAuthUpstreamUrl()}/basicauth/logout`, { refreshToken }, {
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          validateStatus: () => true,
+          timeout: 15_000,
+        })
+        .catch(() => undefined);
+    }
+  } catch {
+    /* best-effort */
+  }
+
+  const response = NextResponse.json({ ok: true }, { status: 200 });
+  clearAuthCookies(response);
   return response;
 }

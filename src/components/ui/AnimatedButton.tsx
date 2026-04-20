@@ -9,11 +9,11 @@ const MotionLink = motion(Link);
 type Variant = "primary" | "ghost" | "outline";
 
 const base =
-  "relative inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-[13px] font-semibold transition-[box-shadow,background-color,border-color,color,transform] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "relative inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-[13px] font-semibold transition-[box-shadow,background-color,border-color,color,transform] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-accent-fg shadow-sm hover:brightness-110 hover:shadow-md active:brightness-95",
+    "bg-btn-solid text-btn-solid-fg shadow-sm hover:brightness-110 hover:shadow-md active:brightness-95",
   ghost:
     "border border-border-subtle/80 bg-transparent text-text transition-colors duration-200 hover:bg-bg-raised/80 dark:hover:bg-white/[0.06]",
   outline:

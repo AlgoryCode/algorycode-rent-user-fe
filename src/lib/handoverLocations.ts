@@ -1,3 +1,5 @@
+import axios from "axios";
+
 import { getRentApiRoot } from "@/lib/api-base";
 
 export type HeroHandoverOption = {
@@ -37,9 +39,8 @@ async function fetchHandoverLocationsJson(kind?: "PICKUP" | "RETURN"): Promise<u
   const url = `${getRentApiRoot()}/handover-locations${suffix}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers, cache: "no-store" });
-  if (!r.ok) return [];
-  const data: unknown = await r.json();
+  const { status, data } = await axios.get<unknown>(url, { headers, timeout: 20_000, validateStatus: () => true });
+  if (status < 200 || status >= 300) return [];
   return Array.isArray(data) ? data : [];
 }
 

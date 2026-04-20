@@ -1,3 +1,4 @@
+import axios from "axios";
 import type { FleetVehicle, VehicleHandoverBookingOption } from "@/data/fleet";
 import { getFirstLocationByCountryCode, pickupLocations } from "@/data/locations";
 
@@ -221,11 +222,10 @@ async function fetchVehiclesJsonFromGateway(
   const url = `${getRentApiRoot()}/vehicles${suffix}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers, cache: "no-store" });
-  if (!r.ok) {
-    throw new Error(`Rent vehicles HTTP ${r.status}`);
+  const { status, data } = await axios.get<unknown>(url, { headers, timeout: 20_000, validateStatus: () => true });
+  if (status < 200 || status >= 300) {
+    throw new Error(`Rent vehicles HTTP ${status}`);
   }
-  const data: unknown = await r.json();
   return Array.isArray(data) ? data : [];
 }
 
@@ -257,9 +257,8 @@ export async function fetchFleetVehicleById(id: string): Promise<FleetVehicle | 
     const url = `${getRentApiRoot()}/vehicles/${encodeURIComponent(trimmed)}`;
     const headers: Record<string, string> = { Accept: "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
-    const r = await fetch(url, { headers, cache: "no-store" });
-    if (!r.ok) return null;
-    const data: unknown = await r.json();
+    const { status, data } = await axios.get<unknown>(url, { headers, timeout: 20_000, validateStatus: () => true });
+    if (status < 200 || status >= 300) return null;
     if (data == null || typeof data !== "object") return null;
     return mapRentVehicleToFleet(data as RentVehicleDto);
   } catch {

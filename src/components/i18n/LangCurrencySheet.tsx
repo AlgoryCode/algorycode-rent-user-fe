@@ -235,7 +235,7 @@ function LangCurrencySheetInner({ onOpenChange }: { onOpenChange: (open: boolean
           <button
             type="button"
             onClick={save}
-            className="mt-6 w-full rounded-xl bg-accent py-3 text-sm font-semibold text-white shadow-sm transition-[filter] hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mt-6 w-full rounded-xl bg-btn-solid py-3 text-sm font-semibold text-btn-solid-fg shadow-sm transition-[filter] hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid"
           >
             {t("lang.save")}
           </button>

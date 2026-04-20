@@ -30,7 +30,7 @@ export function VehicleRentalFaqPanel({ className = "" }: { className?: string }
     >
       <h2
         id="arac-sss-baslik"
-        className="font-display text-sm font-semibold tracking-tight text-text sm:text-base"
+        className="text-sm font-semibold tracking-tight text-text sm:text-base"
       >
         Sıkça sorulan sorular
       </h2>

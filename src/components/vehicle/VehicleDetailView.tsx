@@ -335,7 +335,7 @@ export function VehicleDetailView({
                       setGuestSubflow(false);
                       router.push(`/giris-yap?next=${encodeURIComponent(buildReserveHref())}`);
                     }}
-                    className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg"
+                    className="w-full rounded-lg bg-btn-solid px-3 py-2.5 text-sm font-semibold text-btn-solid-fg"
                   >
                     Giriş yaparak devam et
                   </button>
@@ -446,7 +446,7 @@ export function VehicleDetailView({
                   </span>
                 ) : null}
               </div>
-              <h1 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.35rem] lg:leading-[1.12] xl:text-4xl">
+              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.35rem] lg:leading-[1.12] xl:text-4xl">
                 {vehicle.name}
               </h1>
               <dl className="mt-3 flex w-full max-w-md flex-col divide-y divide-white/15 overflow-hidden rounded-xl border border-white/[0.14] bg-gradient-to-b from-white/[0.09] to-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md sm:mt-4 sm:flex-row sm:divide-x sm:divide-y-0 sm:divide-white/15 sm:px-1 sm:py-1">
@@ -465,7 +465,7 @@ export function VehicleDetailView({
                 ))}
               </dl>
               <div className="mt-5 sm:mt-6">
-                <p className="font-display text-3xl font-bold tabular-nums text-white sm:text-4xl">
+                <p className="text-3xl font-bold tabular-nums text-white sm:text-4xl">
                   {formatPrice(vehicle.pricePerDay)}
                   <span className="text-lg font-semibold text-white/80 sm:text-xl"> / günlük</span>
                 </p>
@@ -604,7 +604,7 @@ export function VehicleDetailView({
                     <ul className="mt-3 space-y-2" role="list">
                       {vehicle.included.slice(0, 5).map((x) => (
                         <li key={x} className="flex gap-2 text-sm font-medium leading-snug text-text">
-                          <span className="mt-2 size-1 shrink-0 rounded-full bg-accent" aria-hidden />
+                          <span className="mt-2 size-1 shrink-0 rounded-full bg-btn-solid" aria-hidden />
                           <span>{x}</span>
                         </li>
                       ))}

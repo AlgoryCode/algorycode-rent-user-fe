@@ -76,7 +76,7 @@ function UyeOlPageContent() {
             </div>
             <h2 className="text-lg font-semibold text-text">Başarılı!</h2>
             <p className="text-sm text-text-muted">Başarıyla kaydınız oluşturuldu. Giriş yapabilirsiniz.</p>
-            <Link href={`/giris-yap?next=${encodeURIComponent(next)}`} className="inline-block w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg">
+            <Link href={`/giris-yap?next=${encodeURIComponent(next)}`} className="inline-block w-full rounded-lg bg-btn-solid py-2.5 text-sm font-semibold text-btn-solid-fg">
               Giriş Yap
             </Link>
           </div>
@@ -98,7 +98,7 @@ function UyeOlPageContent() {
               Şifre
               <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-card px-3 py-2.5 text-sm text-text" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </label>
-            <button type="submit" disabled={loading} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
+            <button type="submit" disabled={loading} className="w-full rounded-lg bg-btn-solid py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">{loading ? "Hesap oluşturuluyor..." : "Üye Ol"}</button>
           </form>
         )}
 

@@ -1,5 +1,6 @@
 import { parseAuthServiceError } from "@/lib/authError";
 import { getAuthGatewayAxios } from "@/lib/gatewayAxios";
+import { getPanelSameOriginAxios } from "@/lib/panel-same-origin-axios";
 
 /** Kayıtta gönderilebilir `registrationRole` değerleri (AuthService `RegistrationRole` enum ile aynı adlar). */
 export type RegistrationRoleCode =
@@ -77,17 +78,14 @@ function messageFromUnknown(data: unknown, fallback: string): string {
 }
 
 export async function loginBasic(email: string, password: string): Promise<TokenResponse> {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.trim(), password }),
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const text = await res.text();
-  const data = parseJsonResponse(text);
-  if (!res.ok) {
-    throw new Error(messageFromUnknown(data, `Giriş başarısız (${res.status})`));
+  const { status, data: raw } = await getPanelSameOriginAxios().post<unknown>(
+    "/api/auth/login",
+    { email: email.trim(), password },
+    { validateStatus: () => true },
+  );
+  const data = typeof raw === "string" ? parseJsonResponse(raw) : raw ?? {};
+  if (status < 200 || status >= 300) {
+    throw new Error(messageFromUnknown(data, `Giriş başarısız (${status})`));
   }
   return data as TokenResponse;
 }
@@ -108,32 +106,27 @@ export async function registerBasic(payload: {
     phoneNumber: payload.phoneNumber,
     registrationRole: payload.registrationRole ?? "RENT_USER",
   };
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    credentials: "same-origin",
-    cache: "no-store",
+  const { status, data: raw } = await getPanelSameOriginAxios().post<unknown>("/api/auth/register", body, {
+    validateStatus: () => true,
   });
-  const text = await res.text();
-  const data = parseJsonResponse(text);
-  if (!res.ok) {
-    throw new Error(messageFromUnknown(data, `Kayıt başarısız (${res.status})`));
+  const data = typeof raw === "string" ? parseJsonResponse(raw) : raw ?? {};
+  if (status < 200 || status >= 300) {
+    throw new Error(messageFromUnknown(data, `Kayıt başarısız (${status})`));
   }
 }
 
 export async function loginWithGoogleIdToken(idToken: string): Promise<TokenResponse> {
-  const res = await fetch("/api/auth/google/login", {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "text/plain" },
-    body: idToken,
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const text = await res.text();
-  const data = parseJsonResponse(text);
-  if (!res.ok) {
-    throw new Error(messageFromUnknown(data, `Google giriş başarısız (${res.status})`));
+  const { status, data: raw } = await getPanelSameOriginAxios().post<unknown>(
+    "/api/auth/google/login",
+    idToken,
+    {
+      headers: { Accept: "application/json", "Content-Type": "text/plain" },
+      validateStatus: () => true,
+    },
+  );
+  const data = typeof raw === "string" ? parseJsonResponse(raw) : raw ?? {};
+  if (status < 200 || status >= 300) {
+    throw new Error(messageFromUnknown(data, `Google giriş başarısız (${status})`));
   }
   return data as TokenResponse;
 }

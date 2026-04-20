@@ -10,7 +10,7 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer id="iletisim" className="mt-16 shrink-0 border-t border-border-subtle bg-bg-raised shadow-[inset_0_1px_0_rgba(201,169,98,0.08)] dark:shadow-[inset_0_1px_0_rgba(201,169,98,0.12)]">
+    <footer id="iletisim" className="shrink-0 border-t border-border-subtle bg-bg-raised shadow-[inset_0_1px_0_rgba(201,169,98,0.08)] dark:shadow-[inset_0_1px_0_rgba(201,169,98,0.12)]">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <motion.div
@@ -34,7 +34,7 @@ export function Footer() {
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
               {(
                 [
-                  ["#", "footer.linkFleet"],
+                  ["/#filomuz", "footer.linkFleet"],
                   ["#", "footer.linkCorporate"],
                   ["#", "footer.linkBlog"],
                 ] as const
@@ -57,7 +57,7 @@ export function Footer() {
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
               {(
                 [
-                  ["#", "footer.linkFaq"],
+                  ["/#sss", "footer.linkFaq"],
                   ["#", "footer.linkDamage"],
                   ["#", "footer.linkReturns"],
                 ] as const

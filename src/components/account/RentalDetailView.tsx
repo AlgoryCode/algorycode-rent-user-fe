@@ -207,7 +207,7 @@ export function RentalDetailView({ kind, id }: { kind: Kind; id: string }) {
                 {vehicleByIdFailed && vehicleId ? (
                   <p className="mt-1 text-xs text-amber-200/90">
                     Araç kartı yüklenemedi (yetki veya ağ). Araç no:{" "}
-                    <span className="font-mono text-text-muted">{vehicleId}</span>
+                    <span className="font-sans tabular-nums tracking-tight text-text-muted">{vehicleId}</span>
                   </p>
                 ) : null}
                 {plate ? <p className="mt-1 text-sm text-text-muted">Plaka: {plate}</p> : null}
@@ -230,7 +230,7 @@ export function RentalDetailView({ kind, id }: { kind: Kind; id: string }) {
               </p>
               {referenceNo ? (
                 <p className="mt-3 text-sm text-text-muted">
-                  Referans: <span className="font-mono text-text">{referenceNo}</span>
+                  Referans: <span className="font-sans tabular-nums tracking-tight text-text">{referenceNo}</span>
                 </p>
               ) : null}
               {createdAt ? (

@@ -28,7 +28,7 @@ export function VehicleRentalPriceDetails({
 
   return (
     <div className={`${shell} ${className}`}>
-      <h3 className="font-display text-base font-semibold tracking-tight text-text sm:text-lg">
+      <h3 className="text-base font-semibold tracking-tight text-text sm:text-lg">
         Fiyat Ayrıntıları
       </h3>
 

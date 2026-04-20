@@ -137,7 +137,7 @@ export function GuestReservationGate({
               type="button"
               disabled={busy}
               onClick={() => void onContinue()}
-              className="w-full rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg shadow-sm disabled:opacity-60"
+              className="w-full rounded-lg bg-btn-solid px-3 py-2.5 text-sm font-semibold text-btn-solid-fg shadow-sm disabled:opacity-60"
             >
               {busy ? "Kontrol ediliyor…" : "Devam et"}
             </button>
@@ -152,7 +152,7 @@ export function GuestReservationGate({
             </p>
             <Link
               href={loginHref}
-              className="flex w-full items-center justify-center rounded-lg bg-accent px-3 py-2.5 text-sm font-semibold text-accent-fg shadow-sm"
+              className="flex w-full items-center justify-center rounded-lg bg-btn-solid px-3 py-2.5 text-sm font-semibold text-btn-solid-fg shadow-sm"
             >
               Giriş yap
             </Link>

@@ -154,8 +154,8 @@ export function Header() {
                   <button
                     type="button"
                     onClick={() => setMenuOpen((v) => !v)}
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/15 text-[11px] font-semibold tracking-tight text-white outline-none transition-colors duration-200 hover:bg-white/25 sm:text-xs ${
-                      menuOpen ? "ring-2 ring-white/40" : ""
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-full border border-white/85 bg-white text-[11px] font-semibold tracking-tight text-navy-hero shadow-sm outline-none transition-colors duration-200 hover:bg-white/95 sm:text-xs ${
+                      menuOpen ? "ring-2 ring-white/70" : ""
                     }`}
                     aria-label={t("header.accountMenu")}
                     aria-expanded={menuOpen}
@@ -165,7 +165,7 @@ export function Header() {
                   </button>
                   {menuOpen && (
                     <div
-                      className="absolute right-0 top-[calc(100%+0.375rem)] z-50 min-w-0 max-w-[min(16rem,calc(100dvw-2rem))] w-[min(16rem,calc(100dvw-2rem))] overflow-hidden rounded-md border border-white/15 bg-[#0f2744] p-1 shadow-xl ring-1 ring-black/30"
+                      className="absolute right-0 top-[calc(100%+0.375rem)] z-50 min-w-0 max-w-[min(16rem,calc(100dvw-2rem))] w-[min(16rem,calc(100dvw-2rem))] overflow-hidden rounded-lg border border-white/20 bg-navy-hero p-1 shadow-[0_16px_48px_rgba(0,8,40,0.45)] ring-1 ring-white/10"
                       role="menu"
                     >
                       <div className="mb-1 border-b border-white/10 px-2.5 pb-2.5 pt-2">
@@ -240,7 +240,7 @@ export function Header() {
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Link
                     href="/uye-ol"
-                    className="inline-flex h-10 items-center rounded-md bg-sky-500 px-3.5 text-sm font-semibold text-white shadow-md transition-shadow hover:bg-sky-400 hover:shadow-lg sm:px-4 sm:text-[15px]"
+                    className="inline-flex h-10 items-center rounded-md bg-btn-solid px-3.5 text-sm font-semibold text-btn-solid-fg shadow-md transition-[filter,box-shadow] hover:brightness-110 hover:shadow-lg sm:px-4 sm:text-[15px]"
                   >
                     {t("header.signUp")}
                   </Link>
@@ -270,7 +270,7 @@ export function Header() {
               role="dialog"
               aria-modal="true"
               aria-label={t("header.mobileMenuTitle")}
-              className="fixed left-0 top-[var(--header-h)] z-[43] flex h-[calc(100dvh-var(--header-h))] w-[min(20.5rem,92vw)] flex-col border-r border-white/10 bg-[#0c1a33] shadow-[6px_0_40px_rgba(0,0,0,0.45)] md:hidden"
+              className="fixed left-0 top-[var(--header-h)] z-[43] flex h-[calc(100dvh-var(--header-h))] w-[min(20.5rem,92vw)] flex-col border-r border-white/10 bg-navy-hero-drawer shadow-[6px_0_40px_rgba(0,0,0,0.45)] md:hidden"
               initial={{ x: "-105%" }}
               animate={{ x: 0 }}
               exit={{ x: "-105%" }}

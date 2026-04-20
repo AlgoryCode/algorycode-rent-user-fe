@@ -7,6 +7,6 @@ import { cookies } from "next/headers";
 export async function getAccessTokenFromCookies(): Promise<string | null> {
   const store = await cookies();
   const t =
-    store.get("algory_access_token")?.value?.trim() || store.get("accessToken")?.value?.trim() || null;
+    store.get("accessToken")?.value?.trim() || store.get("algory_access_token")?.value?.trim() || null;
   return t || null;
 }

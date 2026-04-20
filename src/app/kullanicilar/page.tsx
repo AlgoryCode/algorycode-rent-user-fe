@@ -103,7 +103,7 @@ export default function KullanicilarPage() {
               resetForm();
               setOpen(true);
             }}
-            className="shrink-0 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg shadow-sm transition-shadow hover:shadow-md"
+            className="shrink-0 rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg shadow-sm transition-shadow hover:shadow-md"
           >
             Kullanıcı ekle
           </button>
@@ -198,7 +198,7 @@ export default function KullanicilarPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg disabled:opacity-60"
+                    className="rounded-lg bg-btn-solid px-4 py-2 text-sm font-semibold text-btn-solid-fg disabled:opacity-60"
                   >
                     {loading ? "Kaydediliyor…" : "Kaydet"}
                   </button>

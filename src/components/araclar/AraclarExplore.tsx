@@ -242,7 +242,7 @@ export function AraclarExplore({
                 <motion.button
                   type="button"
                   onClick={clearAllFilters}
-                  className="mt-5 rounded-md bg-accent px-5 py-2.5 text-[13px] font-semibold text-accent-fg"
+                  className="mt-5 rounded-md bg-btn-solid px-5 py-2.5 text-[13px] font-semibold text-btn-solid-fg"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                 >
@@ -546,7 +546,7 @@ function FilterPanelRentalDates({
   );
 
   return (
-    <div className="rounded-lg border border-border-subtle/60 bg-bg-deep/15 px-2.5 py-2 dark:bg-white/[0.03]">
+    <div className="rounded-lg bg-bg-deep/15 px-2.5 py-2 dark:bg-white/[0.03]">
       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Tarih ve saat</p>
       <p className="mt-0.5 text-[10px] leading-tight text-text-muted">Tarihe tıklayınca takvim açılır.</p>
       <div className="mt-2 min-w-0">
@@ -632,7 +632,7 @@ function FilterPanel({
   }, [maxPriceDraft, minPriceDraft, pushFilters]);
 
   return (
-    <div className="space-y-6 border-2 border-border-subtle bg-bg-card p-5 sm:p-6">
+    <div className="space-y-6 rounded-xl bg-bg-card p-5 shadow-sm sm:p-6 dark:shadow-none">
       <FilterPanelRentalDates filters={filters} bounds={bounds} />
 
       <div>
@@ -680,7 +680,7 @@ function FilterPanel({
           disabled={!priceDraftDirty}
           whileTap={priceDraftDirty ? { scale: 0.98 } : undefined}
           onClick={applyBudgetFilter}
-          className="mt-3 w-full rounded-lg bg-accent py-2 text-[13px] font-semibold text-accent-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+          className="mt-3 w-full rounded-lg bg-btn-solid py-2 text-[13px] font-semibold text-btn-solid-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
         >
           Filtrele
         </motion.button>

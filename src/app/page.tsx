@@ -1,9 +1,10 @@
 import { SiteLayout } from "@/components/layout/SiteLayout";
-import { CtaBand } from "@/components/sections/CtaBand";
+import { CategoryShowcaseSection } from "@/components/home/CategoryShowcaseSection";
+import { FaqContactSection } from "@/components/home/FaqContactSection";
 import { FleetSection } from "@/components/sections/FleetSection";
 import { Hero } from "@/components/sections/Hero";
 import { HowItWorks } from "@/components/sections/HowItWorks";
-import { StatsStrip } from "@/components/sections/StatsStrip";
+import { MotivationSection } from "@/components/sections/MotivationSection";
 import {
   buildAraclarPreserveQuery,
   flattenSearchParams,
@@ -19,6 +20,17 @@ type Props = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+/**
+ * Ana sayfa modüler bölümler (yukarıdan aşağıya):
+ * 1. Navbar → `SiteLayout` / `Header`
+ * 2. Hero → `Hero`
+ * 3. Kategori vitrin kartları → `CategoryShowcaseSection`
+ * 4. Öne çıkan filo → `FleetSection`
+ * 5. Teşvik / CTA → `MotivationSection`
+ * 6. Nasıl çalışır → `HowItWorks`
+ * 7. SSS + iletişim özeti → `FaqContactSection`
+ * 8. Footer → `SiteLayout` / `Footer`
+ */
 export default async function Home({ searchParams }: Props) {
   const raw = searchParams != null ? await searchParams : {};
   const flat = flattenSearchParams(raw);
@@ -33,16 +45,17 @@ export default async function Home({ searchParams }: Props) {
 
   return (
     <SiteLayout>
-      <main>
+      <main className="flex min-w-0 flex-col">
         <Hero pickupHandoverOptions={pickupHandoverOptions} returnHandoverOptions={returnHandoverOptions} />
-        <StatsStrip />
+        <CategoryShowcaseSection vehicles={vehicles} exploreHref={exploreHref} />
         <FleetSection
           vehicles={vehicles}
           exploreHref={exploreHref}
           vehicleCardQuerySuffix={preserveQs}
         />
+        <MotivationSection />
         <HowItWorks />
-        <CtaBand />
+        <FaqContactSection />
       </main>
     </SiteLayout>
   );

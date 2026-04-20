@@ -1,8 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 import type { FleetVehicle } from "@/data/fleet";
+import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { Reveal } from "@/components/ui/Reveal";
 import { VehicleCard } from "@/components/vehicle/VehicleCard";
 
@@ -47,12 +47,9 @@ export function FleetSection({
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
       >
-        <Link
-          href={exploreHref}
-          className="inline-flex min-h-11 items-center rounded-md border border-border-subtle bg-bg-card px-6 text-[13px] font-semibold text-text shadow-sm transition-colors hover:border-navy-hero/25 hover:bg-bg-raised"
-        >
+        <AnimatedButton variant="ghost" href={exploreHref}>
           Tümünü gör ({vehicles.length})
-        </Link>
+        </AnimatedButton>
       </motion.div>
     </section>
   );

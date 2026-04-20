@@ -207,7 +207,7 @@ export function HeroRentalSearch({
 
   return (
     <div
-      className={`relative z-10 mx-auto w-full min-w-0 max-w-full overflow-visible rounded-2xl border border-white/25 bg-white/92 p-4 shadow-[0_24px_80px_-32px_rgba(6,10,18,0.55)] backdrop-blur-md dark:border-white/10 dark:bg-bg-card/88 sm:p-5 md:p-6 ${className}`}
+      className={`relative z-10 mx-auto w-full min-w-0 max-w-full overflow-visible p-4 sm:p-5 md:p-6 ${className}`}
     >
       <div className="mx-auto flex w-full min-w-0 max-w-[min(100%,52rem)] flex-col gap-3 xl:max-w-[56rem]">
         {/* Mobil / tablet: alış → onay → bırakış → tarihler → ara */}
@@ -274,15 +274,15 @@ export function HeroRentalSearch({
           <button
             type="button"
             onClick={submit}
-            className="flex min-h-[3rem] w-full items-center justify-center gap-2 bg-accent px-4 text-sm font-semibold text-accent-fg transition-[filter,box-shadow] hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-b-xl bg-btn-solid px-4 text-sm font-semibold text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
             aria-label="Araç bul"
           >
             <svg
-              className="size-5 shrink-0 opacity-95"
+              className="size-[1.15rem] shrink-0 opacity-90"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.25"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden
@@ -359,15 +359,15 @@ export function HeroRentalSearch({
           <button
             type="button"
             onClick={submit}
-            className="flex w-[3.35rem] shrink-0 flex-col items-center justify-center bg-accent text-accent-fg transition-[filter,box-shadow] hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="flex w-[3.35rem] shrink-0 flex-col items-center justify-center self-stretch rounded-r-xl border-l border-btn-solid-fg/10 bg-btn-solid text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid dark:border-l-white/10 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
             aria-label="Araç bul"
           >
             <svg
-              className="size-5 shrink-0 opacity-95"
+              className="size-[1.15rem] shrink-0 opacity-90"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.25"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden

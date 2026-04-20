@@ -10,7 +10,7 @@ export function ReservationCalendarSupportAside({ className = "" }: { className?
     <aside
       className={`flex min-h-0 flex-col justify-center rounded-2xl border border-border-subtle/80 bg-bg-card/55 p-4 shadow-sm backdrop-blur-sm sm:p-5 ${className}`}
     >
-      <h3 className="font-display text-base font-semibold leading-snug tracking-tight text-text sm:text-lg">
+      <h3 className="text-base font-semibold leading-snug tracking-tight text-text sm:text-lg">
         Rezervasyonla ilgili sorunuz mu var?
       </h3>
       <p className="mt-1 text-sm font-semibold text-accent">Bize ulaşın</p>

@@ -127,12 +127,12 @@ export async function fetchHandoverPricingQuoteFromRentApi(pickupHandoverId: str
 
 export async function fetchHandoverPricingQuoteAsRentGuest(pickupHandoverId: string, returnHandoverId: string) {
   const q = new URLSearchParams({ pickupHandoverId, returnHandoverId });
-  const r = await fetch(`/api/rent/guest/handover-pricing/quote?${q.toString()}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-  return parseGuestBffJson<HandoverPricingQuoteDto>(r);
+  const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
+  const { status, data } = await getPanelSameOriginAxios().get<unknown>(
+    `/api/rent/guest/handover-pricing/quote?${q.toString()}`,
+    { validateStatus: () => true },
+  );
+  return parseGuestBffAxios<HandoverPricingQuoteDto>(status, data);
 }
 
 export async function fetchReservationExtraOptionsFromRentApi() {
@@ -289,15 +289,14 @@ export async function createRentalRequestOnRentApi(payload: CreateRentalRequestF
   return apiRequest<RentRentalRequestDto>("/rental-requests", "POST", payload);
 }
 
-async function parseGuestBffJson<T>(r: Response): Promise<T> {
-  const data: unknown = await r.json().catch(() => null);
-  if (!r.ok) {
+function parseGuestBffAxios<T>(status: number, data: unknown): T {
+  if (status < 200 || status >= 300) {
     const msg =
       data != null && typeof data === "object" && "message" in data && typeof (data as { message?: unknown }).message === "string"
         ? (data as { message: string }).message
         : typeof data === "string"
           ? data
-          : JSON.stringify(data ?? "") || `Rent API error (${r.status})`;
+          : JSON.stringify(data ?? "") || `Rent API error (${status})`;
     throw new Error(msg);
   }
   return data as T;
@@ -306,32 +305,27 @@ async function parseGuestBffJson<T>(r: Response): Promise<T> {
 /** Misafir: BFF → gateway `/rent/guest/...` (JWT yok). */
 export async function fetchHandoverLocationsAsRentGuest(kind?: "PICKUP" | "RETURN") {
   const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-  const r = await fetch(`/api/rent/guest/handover-locations${q}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
+  const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
+  const { status, data } = await getPanelSameOriginAxios().get<unknown>(`/api/rent/guest/handover-locations${q}`, {
+    validateStatus: () => true,
   });
-  return parseGuestBffJson<RentHandoverLocationDto[]>(r);
+  return parseGuestBffAxios<RentHandoverLocationDto[]>(status, data);
 }
 
 export async function fetchReservationExtraOptionsAsRentGuest() {
-  const r = await fetch("/api/rent/guest/reservation-extra-options", {
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json" },
+  const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
+  const { status, data } = await getPanelSameOriginAxios().get<unknown>("/api/rent/guest/reservation-extra-options", {
+    validateStatus: () => true,
   });
-  return parseGuestBffJson<ReservationExtraOptionTemplateDto[]>(r);
+  return parseGuestBffAxios<ReservationExtraOptionTemplateDto[]>(status, data);
 }
 
 export async function createRentalRequestAsRentGuest(payload: CreateRentalRequestFormPayload) {
-  const r = await fetch("/api/rent/guest/rental-requests", {
-    method: "POST",
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+  const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
+  const { status, data } = await getPanelSameOriginAxios().post<unknown>("/api/rent/guest/rental-requests", payload, {
+    validateStatus: () => true,
   });
-  return parseGuestBffJson<RentRentalRequestDto>(r);
+  return parseGuestBffAxios<RentRentalRequestDto>(status, data);
 }
 
 export async function fetchRentalRequestByReferenceFromRentApi(referenceNo: string) {

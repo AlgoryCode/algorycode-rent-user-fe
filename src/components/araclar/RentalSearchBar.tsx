@@ -145,7 +145,7 @@ export function RentalSearchBar({
               <motion.button
                 type="button"
                 onClick={submit}
-                className="h-9 shrink-0 rounded-lg bg-accent px-4 text-xs font-semibold text-accent-fg shadow-sm sm:px-5 sm:text-[13px]"
+                className="h-9 shrink-0 rounded-lg bg-btn-solid px-4 text-xs font-semibold text-btn-solid-fg shadow-sm sm:px-5 sm:text-[13px]"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
@@ -208,7 +208,7 @@ export function RentalSearchBar({
             <motion.button
               type="button"
               onClick={submit}
-              className="h-10 w-full rounded-lg bg-accent px-5 text-sm font-semibold text-accent-fg shadow-sm transition-[filter] hover:brightness-105 sm:w-auto xl:w-full"
+              className="h-10 w-full rounded-lg bg-btn-solid px-5 text-sm font-semibold text-btn-solid-fg shadow-sm transition-[filter] hover:brightness-105 sm:w-auto xl:w-full"
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
             >

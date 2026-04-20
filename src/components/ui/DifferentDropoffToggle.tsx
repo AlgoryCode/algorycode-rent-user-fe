@@ -27,12 +27,12 @@ export function DifferentDropoffToggle({
         if (disabled) return;
         onChange(!checked);
       }}
-      className={`inline-flex w-fit max-w-full select-none items-center justify-start gap-2.5 rounded-xl border px-3 py-2.5 text-left outline-none transition-[border-color,background-color,box-shadow,transform] focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.99] dark:focus-visible:ring-offset-bg-card sm:gap-3 sm:px-4 sm:py-3 ${
+      className={`inline-flex w-fit max-w-full select-none items-center justify-start gap-2.5 rounded-xl border-0 px-3 py-2.5 text-left outline-none transition-[background-color,box-shadow,transform] focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.99] dark:focus-visible:ring-offset-bg-card sm:gap-3 sm:px-4 sm:py-3 ${
         disabled
-          ? "cursor-not-allowed border-border-subtle bg-bg-raised/30 opacity-55"
+          ? "cursor-not-allowed bg-bg-raised/30 opacity-55 dark:bg-white/[0.06]"
           : checked
-            ? "border-accent/45 bg-accent/[0.11] shadow-sm shadow-accent/10 dark:border-accent/40 dark:bg-accent/14"
-            : "border-neutral-200/90 bg-neutral-50/90 hover:border-neutral-300 hover:bg-white dark:border-white/12 dark:bg-bg-raised/35 dark:hover:border-white/20 dark:hover:bg-bg-raised/50"
+            ? "bg-accent/[0.11] shadow-sm shadow-accent/10 dark:bg-accent/14"
+            : "bg-transparent hover:bg-neutral-100/80 dark:hover:bg-white/[0.08]"
       } ${className}`}
     >
       <span className="min-w-0 shrink text-left">
@@ -48,7 +48,7 @@ export function DifferentDropoffToggle({
       <span
         aria-hidden
         className={`relative inline-block h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ease-out ${
-          checked ? "bg-accent" : "bg-neutral-300 dark:bg-white/22"
+          checked ? "bg-btn-solid" : "bg-neutral-300 dark:bg-white/22"
         }`}
       >
         <span

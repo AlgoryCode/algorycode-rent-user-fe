@@ -150,7 +150,7 @@ export function LoginModal({ open, onClose, redirectTo = "/", onLoggedIn }: Prop
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-fg disabled:opacity-60"
+              className="w-full rounded-lg bg-btn-solid py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60"
             >
               {loading ? "Giriş yapılıyor..." : "Giriş yap"}
             </button>

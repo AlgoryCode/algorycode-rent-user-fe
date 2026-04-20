@@ -1,3 +1,4 @@
+import axios from "axios";
 import { NextResponse } from "next/server";
 
 import {
@@ -90,19 +91,25 @@ export async function POST(req: Request) {
         ? `${base}${path}?${new URLSearchParams({ email }).toString()}`
         : `${base}${path}`;
 
-    let upstream: Response;
+    let status: number;
+    let data: Record<string, unknown> = {};
     try {
-      upstream = await fetch(url, {
+      const resp = await axios.request<Record<string, unknown>>({
         method,
+        url,
+        data: method === "GET" ? undefined : { email },
         headers:
           method === "GET"
             ? { Accept: "application/json" }
             : { "Content-Type": "application/json", Accept: "application/json" },
-        body: method === "GET" ? undefined : JSON.stringify({ email }),
-        cache: "no-store",
+        validateStatus: () => true,
+        timeout: 20_000,
       });
+      status = resp.status;
+      const body = resp.data;
+      data = body && typeof body === "object" ? body : {};
     } catch (err) {
-      console.error("[api/auth/check-email] upstream fetch failed:", url, err);
+      console.error("[api/auth/check-email] upstream request failed:", url, err);
       return NextResponse.json(
         {
           message: `Kimlik servisine ulaşılamadı (${upstreamErrorMessage(err)}). Gateway veya AUTH_UPSTREAM adresini kontrol edin; geçici olarak AUTH_EMAIL_CHECK_OFFLINE=true ile kayıt kontrolünü atlayabilirsiniz.`,
@@ -111,23 +118,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const rawText = await upstream.text();
-    let data: Record<string, unknown> = {};
-    try {
-      data = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : {};
-    } catch {
-      data = { message: rawText || "Beklenmeyen yanıt" };
-    }
-
-    if (!upstream.ok) {
+    if (status < 200 || status >= 300) {
       const extracted = extractUpstreamDetail(data);
-      const msg = extracted ?? `E-posta kontrolü başarısız (${upstream.status})`;
-      const st = Number.isFinite(upstream.status) && upstream.status >= 400 ? upstream.status : 502;
+      const msg = extracted ?? `E-posta kontrolü başarısız (${status})`;
+      const st = Number.isFinite(status) && status >= 400 ? status : 502;
 
-      const canFailOpen =
-        isEmailCheckFailOpen() && (upstream.status === 404 || upstream.status >= 500);
+      const canFailOpen = isEmailCheckFailOpen() && (status === 404 || status >= 500);
       if (canFailOpen) {
-        console.warn("[api/auth/check-email] fail-open (upstream error):", upstream.status, url, msg);
+        console.warn("[api/auth/check-email] fail-open (upstream error):", status, url, msg);
         return NextResponse.json({ exists: false, failOpen: true }, { status: 200 });
       }
 

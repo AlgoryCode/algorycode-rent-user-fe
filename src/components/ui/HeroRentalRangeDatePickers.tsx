@@ -81,10 +81,10 @@ const searchBarTimeSelectClass =
 
 /** Dar yan panel (ör. filtre sütunu): daha alçak satırlar. */
 const searchBarDateBtnCompactClass =
-  "flex h-8 min-h-0 w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-neutral-200/90 bg-white px-2 text-left text-[11px] font-medium leading-tight text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text";
+  "flex h-8 min-h-0 min-w-0 flex-1 cursor-pointer items-center justify-between gap-1 rounded-md bg-neutral-100/90 px-2 text-left text-[11px] font-medium leading-tight text-neutral-900 outline-none transition-[background-color,box-shadow] hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-accent/30 dark:bg-white/[0.08] dark:text-text dark:hover:bg-white/[0.12]";
 
 const searchBarTimeSelectCompactClass =
-  "flex h-8 min-h-0 w-[4.65rem] shrink-0 cursor-pointer appearance-none items-center rounded-md border border-neutral-200/90 bg-white bg-[length:9px_5px] bg-[position:right_5px_center] bg-no-repeat px-1.5 pr-6 text-[11px] font-semibold tabular-nums text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text";
+  "flex h-8 min-h-0 w-[4.65rem] shrink-0 cursor-pointer appearance-none items-center rounded-md bg-neutral-100/90 bg-[length:9px_5px] bg-[position:right_5px_center] bg-no-repeat px-1.5 pr-6 text-[11px] font-semibold tabular-nums text-neutral-900 shadow-none outline-none transition-[background-color,box-shadow] hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-accent/30 dark:bg-white/[0.08] dark:text-text dark:hover:bg-white/[0.12] [color-scheme:light] dark:[color-scheme:dark]";
 
 const searchBarFieldLabel =
   "text-xs font-medium text-neutral-500 dark:text-text-muted";
@@ -610,7 +610,7 @@ export function HeroRentalRangeDatePickers({
       {layout === "inline" ? (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 border-t border-neutral-200/70 pt-3 text-[10px] text-neutral-600 dark:border-white/10 dark:text-text-muted sm:text-[11px]">
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-navy-hero dark:bg-accent" aria-hidden />
+            <span className="size-2 rounded-full bg-navy-hero dark:bg-btn-solid" aria-hidden />
             Alış / bırakış ucu
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -718,7 +718,7 @@ export function HeroRentalRangeDatePickers({
       <div className={`relative isolate w-full min-w-0 ${className}`.trim()}>
         <div className={framed}>
           {!hideInlineTitle ? (
-            <h2 className="mb-2 font-display text-base font-semibold text-neutral-900 dark:text-text sm:mb-3 sm:text-lg">
+            <h2 className="mb-2 text-base font-semibold text-neutral-900 dark:text-text sm:mb-3 sm:text-lg">
               {inlineTitle}
             </h2>
           ) : null}
@@ -740,63 +740,79 @@ export function HeroRentalRangeDatePickers({
     if (compact) {
       return (
         <div ref={anchorRef} className={`relative isolate w-full min-w-0 ${className}`.trim()}>
-          <div className="grid w-full gap-x-2 gap-y-1.5 [grid-template-columns:minmax(0,1fr)_auto]">
-            <span className={`col-span-2 ${fieldLblClass}`}>Alış tarihi</span>
-            <button
-              type="button"
-              className={`${dateBtnClass} min-w-0`}
-              aria-expanded={open}
-              aria-haspopup="dialog"
-              onClick={() => openPanel("pickup")}
-            >
-              <span className="min-w-0 truncate">{heroDateButtonLabel(pickupDate)}</span>
-              <span className="shrink-0 text-neutral-400" aria-hidden>
-                ▾
+          <div className="flex w-full flex-col gap-1.5">
+            <span className={fieldLblClass}>Alış tarihi</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                className={`${dateBtnClass} min-w-0`}
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                onClick={() => openPanel("pickup")}
+              >
+                <span className="min-w-0 truncate">{heroDateButtonLabel(pickupDate)}</span>
+                <span className="shrink-0 text-neutral-400 dark:text-white/45" aria-hidden>
+                  ▾
+                </span>
+              </button>
+              <span
+                className="shrink-0 select-none text-[13px] font-extralight leading-none text-neutral-300 dark:text-white/25"
+                aria-hidden
+              >
+                |
               </span>
-            </button>
-            <select
-              value={pickTime}
-              onChange={(e) => onPickTime(e.target.value)}
-              className={timeSelClass}
-              style={{ backgroundImage: chevronSvg }}
-              aria-label="Alış saati"
-            >
-              {!HERO_HALF_HOUR_SLOTS.includes(pickTime) ? <option value={pickTime}>{pickTime}</option> : null}
-              {HERO_HALF_HOUR_SLOTS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <span className={`col-span-2 border-t border-neutral-200/70 pt-2 dark:border-white/10 ${fieldLblClass}`}>
+              <select
+                value={pickTime}
+                onChange={(e) => onPickTime(e.target.value)}
+                className={timeSelClass}
+                style={{ backgroundImage: chevronSvg }}
+                aria-label="Alış saati"
+              >
+                {!HERO_HALF_HOUR_SLOTS.includes(pickTime) ? <option value={pickTime}>{pickTime}</option> : null}
+                {HERO_HALF_HOUR_SLOTS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className={`border-t border-neutral-200/60 pt-2 dark:border-white/10 ${fieldLblClass}`}>
               Bırakış tarihi
             </span>
-            <button
-              type="button"
-              className={`${dateBtnClass} min-w-0`}
-              aria-expanded={open}
-              aria-haspopup="dialog"
-              onClick={() => openPanel("return")}
-            >
-              <span className="min-w-0 truncate">{heroDateButtonLabel(returnDate)}</span>
-              <span className="shrink-0 text-neutral-400" aria-hidden>
-                ▾
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                className={`${dateBtnClass} min-w-0`}
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                onClick={() => openPanel("return")}
+              >
+                <span className="min-w-0 truncate">{heroDateButtonLabel(returnDate)}</span>
+                <span className="shrink-0 text-neutral-400 dark:text-white/45" aria-hidden>
+                  ▾
+                </span>
+              </button>
+              <span
+                className="shrink-0 select-none text-[13px] font-extralight leading-none text-neutral-300 dark:text-white/25"
+                aria-hidden
+              >
+                |
               </span>
-            </button>
-            <select
-              value={returnTime}
-              onChange={(e) => onReturnTime(e.target.value)}
-              className={timeSelClass}
-              style={{ backgroundImage: chevronSvg }}
-              aria-label="Bırakış saati"
-            >
-              {!HERO_HALF_HOUR_SLOTS.includes(returnTime) ? <option value={returnTime}>{returnTime}</option> : null}
-              {HERO_HALF_HOUR_SLOTS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              <select
+                value={returnTime}
+                onChange={(e) => onReturnTime(e.target.value)}
+                className={timeSelClass}
+                style={{ backgroundImage: chevronSvg }}
+                aria-label="Bırakış saati"
+              >
+                {!HERO_HALF_HOUR_SLOTS.includes(returnTime) ? <option value={returnTime}>{returnTime}</option> : null}
+                {HERO_HALF_HOUR_SLOTS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {mobileFullScreenPanel}
           {desktopPortalPanel}
@@ -1081,7 +1097,7 @@ function RangeDayCell({
     "bg-sky-100/95 dark:bg-sky-400/[0.14]";
   /** Uç günler: tam hücre yerine sabit yuvarlak — bitişik hücrelere taşmaz. */
   const rangeCapDisc =
-    "flex size-[1.5rem] shrink-0 items-center justify-center rounded-full bg-navy-hero text-[10px] font-semibold text-white shadow-sm ring-1 ring-black/10 dark:bg-accent dark:text-accent-fg dark:ring-white/10 sm:size-[1.65rem] sm:text-[11px]";
+    "flex size-[1.5rem] shrink-0 items-center justify-center rounded-full bg-navy-hero text-[10px] font-semibold text-white shadow-sm ring-1 ring-black/10 dark:bg-btn-solid dark:text-btn-solid-fg dark:ring-white/10 sm:size-[1.65rem] sm:text-[11px]";
   const showRangeCap = !disabled && (isStart || isEnd);
 
   return (

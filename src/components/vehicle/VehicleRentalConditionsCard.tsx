@@ -5,7 +5,7 @@ export function VehicleRentalConditionsCard({ className = "" }: { className?: st
     <div
       className={`rounded-2xl border border-border-subtle/80 bg-bg-card/55 p-4 shadow-sm backdrop-blur-sm sm:p-5 ${className}`}
     >
-      <h3 className="font-display text-base font-semibold tracking-tight text-text sm:text-lg">
+      <h3 className="text-base font-semibold tracking-tight text-text sm:text-lg">
         Kiralama koşulları
       </h3>
       <p className="mt-1.5 text-[13px] leading-relaxed text-text-muted">
