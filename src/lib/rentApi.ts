@@ -2,6 +2,7 @@ import { getRentGatewayAxios } from "@/lib/gatewayAxios";
 import type { RentalPricedLinePayload } from "@/lib/rentalRequestPricing";
 import type { FleetAvailabilityQuery } from "@/lib/fleetAvailabilityQuery";
 import { fleetAvailabilityToSearchParams } from "@/lib/fleetAvailabilityQuery";
+import { extractHandoverRowsFromApiPayload, extractVehicleRowsFromApiPayload } from "@/lib/rentReadModel";
 
 type ApiMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -107,14 +108,29 @@ export async function fetchHandoverLocationsFromRentApi(
     | { kind?: "PICKUP" | "RETURN"; includeInactive?: boolean },
 ) {
   const p = new URLSearchParams();
+  let includeInactive = false;
   if (typeof opts === "string") {
     p.set("kind", opts);
   } else if (opts && typeof opts === "object") {
     if (opts.kind) p.set("kind", opts.kind);
-    if (opts.includeInactive) p.set("includeInactive", "true");
+    if (opts.includeInactive) {
+      includeInactive = true;
+      p.set("includeInactive", "true");
+    }
   }
   const suf = p.toString() ? `?${p.toString()}` : "";
-  return apiRequest<RentHandoverLocationDto[]>(`/handover-locations${suf}`, "GET");
+
+  if (includeInactive) {
+    const raw = await apiRequest<unknown>(`/handover-locations${suf}`, "GET");
+    return extractHandoverRowsFromApiPayload(raw) as RentHandoverLocationDto[];
+  }
+
+  const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
+  const { status, data } = await getPanelSameOriginAxios().get<unknown>(`/api/rent/public/handover-locations${suf}`, {
+    validateStatus: () => true,
+  });
+  parseGuestBffAxios<unknown>(status, data);
+  return extractHandoverRowsFromApiPayload(data) as RentHandoverLocationDto[];
 }
 
 export type HandoverPricingQuoteDto = {
@@ -148,7 +164,8 @@ export async function fetchVehiclesFromRentApi(availability?: FleetAvailabilityQ
   const suffix = availability
     ? `?${fleetAvailabilityToSearchParams(availability).toString()}`
     : "";
-  return apiRequest<RentVehicleDto[]>(`/vehicles${suffix}`, "GET");
+  const raw = await apiRequest<unknown>(`/vehicles${suffix}`, "GET");
+  return extractVehicleRowsFromApiPayload(raw) as RentVehicleDto[];
 }
 
 export async function fetchVehicleByIdFromRentApi(id: string) {
@@ -307,14 +324,15 @@ function parseGuestBffAxios<T>(status: number, data: unknown): T {
   return data as T;
 }
 
-/** Misafir: BFF → gateway `/rent/guest/...` (JWT yok). */
+/** Herkese açık BFF: `/api/rent/public/handover-locations` → gateway `/rent/guest/handover-locations`. */
 export async function fetchHandoverLocationsAsRentGuest(kind?: "PICKUP" | "RETURN") {
   const q = kind ? `?kind=${encodeURIComponent(kind)}` : "";
   const { getPanelSameOriginAxios } = await import("@/lib/panel-same-origin-axios");
-  const { status, data } = await getPanelSameOriginAxios().get<unknown>(`/api/rent/guest/handover-locations${q}`, {
+  const { status, data } = await getPanelSameOriginAxios().get<unknown>(`/api/rent/public/handover-locations${q}`, {
     validateStatus: () => true,
   });
-  return parseGuestBffAxios<RentHandoverLocationDto[]>(status, data);
+  parseGuestBffAxios<unknown>(status, data);
+  return extractHandoverRowsFromApiPayload(data) as RentHandoverLocationDto[];
 }
 
 export async function fetchReservationExtraOptionsAsRentGuest() {

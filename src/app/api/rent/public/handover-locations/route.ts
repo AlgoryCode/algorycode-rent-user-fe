@@ -2,7 +2,7 @@ import { rentHandoverLocationsUpstreamGet } from "@/lib/server/rentHandoverLocat
 
 export const dynamic = "force-dynamic";
 
-/** Gateway `/rent/guest/handover-locations` — JWT yok (`/api/rent/public/handover-locations` ile aynı upstream). */
+/** Oturum gerektirmez; vitrin alış/teslim noktaları için herkese açık BFF. */
 export async function GET(req: Request) {
   return rentHandoverLocationsUpstreamGet(req);
 }

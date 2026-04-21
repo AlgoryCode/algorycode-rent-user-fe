@@ -1,10 +1,13 @@
 import type { FleetVehicle, VehicleHandoverBookingOption } from "@/data/fleet";
 import { getFirstLocationByCountryCode, pickupLocations } from "@/data/locations";
 import { TRY_PER_EUR_REFERENCE } from "@/lib/i18n/config";
+import { parseFeFleetSnapshot, readFeFleetSnapshotFromVehicleDto } from "@/lib/rentReadModel";
 
 export type RentVehicleDto = {
   id?: unknown;
   plate?: unknown;
+  /** rent-service jsonb vitrin paketi — doluysa `mapRentVehicleToFleet` atlanır. */
+  feFleetSnapshot?: unknown;
   brand?: unknown;
   model?: unknown;
   year?: unknown;
@@ -221,4 +224,14 @@ export function mapRentVehicleToFleet(raw: RentVehicleDto): FleetVehicle | null 
     returnHandoversForBooking: returnHandoversForBooking.length > 0 ? returnHandoversForBooking : undefined,
     rentOptionDefinitions,
   };
+}
+
+export function resolveRentVehicleDtoToFleet(raw: RentVehicleDto): FleetVehicle | null {
+  const record = raw as unknown as Record<string, unknown>;
+  const snap = readFeFleetSnapshotFromVehicleDto(record);
+  if (snap !== undefined && snap !== null) {
+    const fromSnap = parseFeFleetSnapshot(snap);
+    if (fromSnap) return fromSnap;
+  }
+  return mapRentVehicleToFleet(raw);
 }

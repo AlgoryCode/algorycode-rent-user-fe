@@ -1,4 +1,5 @@
-import { getRentApiRoot } from "@/lib/api-base";
+import { buildRentGuestGatewayUrl } from "@/lib/server/rentGuestUpstream";
+import { extractHandoverRowsFromApiPayload } from "@/lib/rentReadModel";
 
 export type HeroHandoverOption = {
   id: string;
@@ -14,44 +15,32 @@ function parseRow(row: unknown, fallbackCc: string): (HeroHandoverOption & { lin
   if (row == null || typeof row !== "object") return null;
   const o = row as Record<string, unknown>;
   const id = asString(o.id).trim();
-  const name = asString(o.name).trim();
-  if (!id || !name) return null;
+  const label = asString(o.name).trim() || asString(o.label).trim();
+  if (!id || !label) return null;
   const cc = asString(o.countryCode).trim().toUpperCase() || fallbackCc;
   const lineOrder = typeof o.lineOrder === "number" && Number.isFinite(o.lineOrder) ? o.lineOrder : 0;
-  return { id, label: name, countryCode: cc, lineOrder };
+  return { id, label, countryCode: cc, lineOrder };
 }
 
 async function fetchHandoverLocationsJson(kind?: "PICKUP" | "RETURN"): Promise<unknown[]> {
   const qs = new URLSearchParams();
   if (kind) qs.set("kind", kind);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const url = `${getRentApiRoot()}/handover-locations${suffix}`;
 
   if (typeof window !== "undefined") {
     const { fetchHandoverLocationsFromRentApi } = await import("@/lib/rentApi");
     const data = await fetchHandoverLocationsFromRentApi(kind ? { kind } : undefined);
-    return Array.isArray(data) ? data : [];
+    return extractHandoverRowsFromApiPayload(data);
   }
 
-  const { getAccessTokenFromCookies } = await import("@/lib/server/rentAccessToken");
-  const token = await getAccessTokenFromCookies();
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  /**
-   * Oturum varsa JWT ile canlı istek (`cache: no-store`); yoksa anonim + kısa Data Cache.
-   * Korumalı gateway’de token olmadan `fetch` 401 dönüyordu — hero statik listeye düşüyordu.
-   */
+  /** RSC: JWT olmadan korumalı `/rent/...` 401 verir; her zaman misafir (public) gateway. */
+  const url = `${buildRentGuestGatewayUrl("/handover-locations")}${suffix}`;
   const res = await fetch(url, {
-    headers,
-    ...(token
-      ? { cache: "no-store" as const }
-      : {
-          next: {
-            revalidate: 120,
-            tags: ["handover-locations", kind ? `handover-locations-${kind}` : "handover-locations-all"],
-          },
-        }),
+    headers: { Accept: "application/json" },
+    next: {
+      revalidate: 120,
+      tags: ["handover-locations", kind ? `handover-locations-${kind}` : "handover-locations-all"],
+    },
   });
   if (!res.ok) return [];
   let data: unknown;
@@ -60,7 +49,7 @@ async function fetchHandoverLocationsJson(kind?: "PICKUP" | "RETURN"): Promise<u
   } catch {
     return [];
   }
-  return Array.isArray(data) ? data : [];
+  return extractHandoverRowsFromApiPayload(data);
 }
 
 /** Ana sayfa / hero: katalog sırası (`lineOrder`, ad). */
