@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { rentFloatingDropdownPanelClass, rentSelectTriggerClass } from "@/components/ui/rentFeSurfaces";
@@ -20,7 +19,7 @@ type Props = {
   panelClassName?: string;
   /** Varsa, `rentSelectTriggerClass` yerine tam tetikleyici sınıfları (ör. hero kartı). */
   triggerClassName?: string;
-  /** `"hero"`: açılır liste beyaz / nötr kart (hero arama ile uyumlu). */
+  /** `"hero"`: açılır liste portal + sabit konum (hero arama ile uyumlu). */
   dropdownShell?: "rent" | "hero";
   compact?: boolean;
   leadingIcon?: ReactNode;
@@ -99,16 +98,12 @@ export function RentSelect({
   }, [panelOpen, dropdownShell]);
 
   const heroPanelClass =
-    `overflow-hidden rounded-2xl border border-neutral-200/90 bg-white p-2 shadow-[0_32px_90px_-36px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.04] ${panelClassName}`.trim();
+    `overflow-hidden rounded-xl border border-neutral-200/90 bg-white p-1.5 shadow-md ring-1 ring-black/[0.04] ${panelClassName}`.trim();
 
   const optionRowClass = (selected: boolean) =>
-    dropdownShell === "hero"
-      ? selected
-        ? "mb-1 flex w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/16 px-2.5 py-2 text-left text-sm font-medium text-accent transition-[border-color,background-color,color,transform] duration-150 last:mb-0"
-        : "mb-1 flex w-full items-center justify-between rounded-xl border border-neutral-200/70 bg-white px-2.5 py-2 text-left text-sm text-neutral-800 transition-[border-color,background-color,color,transform] duration-150 last:mb-0 hover:border-accent/30 hover:bg-neutral-50"
-      : selected
-        ? "mb-1 flex w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/16 px-2.5 py-2 text-left text-sm text-accent transition-[border-color,background-color,color,transform] duration-150 last:mb-0"
-        : "mb-1 flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-sm text-text transition-[border-color,background-color,color,transform] duration-150 last:mb-0 hover:-translate-y-[1px] hover:border-accent/20 hover:bg-accent/10 hover:text-accent";
+    selected
+      ? "mb-0.5 flex w-full items-center justify-between rounded-lg border border-neutral-200 bg-neutral-100 px-2.5 py-2 text-left text-sm font-medium text-neutral-800 last:mb-0"
+      : "mb-0.5 flex w-full items-center justify-between rounded-lg border border-transparent px-2.5 py-2 text-left text-sm text-neutral-800 last:mb-0 hover:border-neutral-200/80 hover:bg-neutral-50";
 
   const listbox = (
     <div role="listbox" className="max-h-72 overflow-auto p-0.5">
@@ -127,10 +122,10 @@ export function RentSelect({
             className={optionRowClass(selected)}
           >
             <span className="flex min-w-0 items-center gap-2">
-              {optionLeadingIcon && <span className="shrink-0 text-accent">{optionLeadingIcon}</span>}
+              {optionLeadingIcon && <span className="shrink-0 text-neutral-500">{optionLeadingIcon}</span>}
               <span className="truncate">{o.label}</span>
             </span>
-            {o.right && <span className="ml-2 shrink-0 text-xs text-text-muted">{o.right}</span>}
+            {o.right && <span className="ml-2 shrink-0 text-xs text-neutral-500">{o.right}</span>}
           </button>
         );
       })}
@@ -140,28 +135,21 @@ export function RentSelect({
   const heroPortal =
     dropdownShell === "hero" && typeof document !== "undefined"
       ? createPortal(
-          <AnimatePresence>
-            {panelOpen ? (
-              <motion.div
-                key="rent-select-hero-panel"
-                ref={popoverRef}
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                transition={{ duration: 0.16 }}
-                style={{
-                  position: "fixed",
-                  top: heroPos.top,
-                  left: heroPos.left,
-                  width: heroPos.width,
-                  zIndex: HERO_PANEL_Z,
-                }}
-                className={heroPanelClass}
-              >
-                {listbox}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>,
+          panelOpen ? (
+            <div
+              ref={popoverRef}
+              style={{
+                position: "fixed",
+                top: heroPos.top,
+                left: heroPos.left,
+                width: heroPos.width,
+                zIndex: HERO_PANEL_Z,
+              }}
+              className={heroPanelClass}
+            >
+              {listbox}
+            </div>
+          ) : null,
           document.body,
         )
       : null;
@@ -186,34 +174,38 @@ export function RentSelect({
         }
       >
         <span className="flex min-w-0 items-center gap-2">
-          {leadingIcon && <span className="shrink-0 text-accent">{leadingIcon}</span>}
+          {leadingIcon && <span className="shrink-0 text-neutral-600">{leadingIcon}</span>}
           <span className="truncate">{active?.label ?? "Seçiniz"}</span>
           {active?.right && <span className="shrink-0 text-text-muted">({active.right})</span>}
         </span>
         <span
-          className={`shrink-0 text-text-muted transition-transform ${disabled ? "opacity-35" : panelOpen ? "rotate-180" : ""}`}
+          className={`inline-flex shrink-0 text-neutral-500 transition-transform duration-200 ease-out ${panelOpen ? "rotate-180" : ""}`}
           aria-hidden
         >
-          ▾
+          <svg
+            className={compact ? "size-3.5" : "size-4"}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </span>
       </button>
 
       {dropdownShell === "hero" ? (
         heroPortal
       ) : (
-        <AnimatePresence>
-          {panelOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 6, scale: 0.98 }}
-              transition={{ duration: 0.16 }}
-              className={`${rentFloatingDropdownPanelClass} absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 p-1.5 ${panelClassName}`}
-            >
-              {listbox}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        panelOpen && (
+          <div
+            className={`${rentFloatingDropdownPanelClass} absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 p-1.5 ${panelClassName}`}
+          >
+            {listbox}
+          </div>
+        )
       )}
     </div>
   );

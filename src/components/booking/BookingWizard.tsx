@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Fragment,
@@ -272,24 +271,14 @@ function BookingRentalSummaryCard({
 }) {
   return (
     <div className="space-y-5">
-      <div className="flex gap-3 rounded-2xl bg-gradient-to-br from-bg-card to-bg-raised/80 p-3 ring-1 ring-border-subtle/70">
-        <div className="relative h-[4.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-bg-raised shadow-inner ring-1 ring-border-subtle/40">
-          <Image
-            src={vehicle.image}
-            alt={vehicle.imageAlt}
-            fill
-            className="object-cover"
-            sizes="96px"
-          />
-        </div>
-        <div className="min-w-0 flex-1 py-0.5">
-          <p className="text-[15px] font-bold leading-snug tracking-tight text-text">{vehicle.name}</p>
-          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">Günlük</p>
-          <p className="tabular-nums text-lg font-bold leading-none text-accent">
-            {formatPrice(vehicle.pricePerDay)}
-            <span className="text-xs font-semibold text-text-muted"> / gün</span>
-          </p>
-        </div>
+      <div className="rounded-2xl bg-gradient-to-br from-bg-card to-bg-raised/80 p-4 ring-1 ring-border-subtle/70">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{vehicle.brand}</p>
+        <p className="mt-0.5 text-[15px] font-bold leading-snug tracking-tight text-text">{vehicle.name}</p>
+        <p className="mt-2 text-[11px] font-medium uppercase tracking-wider text-text-muted">Günlük</p>
+        <p className="tabular-nums text-lg font-bold leading-none text-accent">
+          {formatPrice(vehicle.pricePerDay)}
+          <span className="text-xs font-semibold text-text-muted"> / gün</span>
+        </p>
       </div>
 
       {nights != null && pickup && ret ? (

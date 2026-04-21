@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -56,8 +55,15 @@ function staticPickupFallback(): HeroHandoverOption[] {
   });
 }
 
-function initialPickupId(apiPick: HeroHandoverOption[]): string {
-  const list = apiPick.length > 0 ? apiPick : staticPickupFallback();
+/** Başlangıç konumu: DB RETURN (teslim) listesi; boşsa PICKUP / statik. */
+function startLocationList(apiPick: HeroHandoverOption[], apiRet: HeroHandoverOption[]): HeroHandoverOption[] {
+  if (apiRet.length > 0) return apiRet;
+  if (apiPick.length > 0) return apiPick;
+  return staticPickupFallback();
+}
+
+function initialPickupId(apiPick: HeroHandoverOption[], apiRet: HeroHandoverOption[]): string {
+  const list = startLocationList(apiPick, apiRet);
   return list[0]?.id ?? "";
 }
 
@@ -83,10 +89,10 @@ export function HeroRentalSearch({
   returnHandoverOptions,
 }: HeroRentalSearchProps) {
   const router = useRouter();
-  const [fromId, setFromId] = useState(() => initialPickupId(pickupHandoverOptions));
+  const [fromId, setFromId] = useState(() => initialPickupId(pickupHandoverOptions, returnHandoverOptions));
   const [toId, setToId] = useState(() =>
     initialReturnId(
-      initialPickupId(pickupHandoverOptions),
+      initialPickupId(pickupHandoverOptions, returnHandoverOptions),
       returnHandoverOptions,
       pickupHandoverOptions,
     ),
@@ -97,10 +103,10 @@ export function HeroRentalSearch({
   const [returnTime, setReturnTime] = useState("10:00");
   const [differentDropoff, setDifferentDropoff] = useState(false);
 
-  const pickupOptions = useMemo(() => {
-    if (pickupHandoverOptions.length > 0) return pickupHandoverOptions;
-    return staticPickupFallback();
-  }, [pickupHandoverOptions]);
+  const pickupOptions = useMemo(
+    () => startLocationList(pickupHandoverOptions, returnHandoverOptions),
+    [pickupHandoverOptions, returnHandoverOptions],
+  );
 
   const returnOptions = useMemo(() => {
     if (returnHandoverOptions.length > 0) return returnHandoverOptions;
@@ -228,32 +234,23 @@ export function HeroRentalSearch({
           <div className="px-4 py-3 sm:px-5">
             <DifferentDropoffToggle checked={differentDropoff} onChange={handleDifferentDropoff} />
           </div>
-          <AnimatePresence initial={false}>
-            {differentDropoff ? (
-              <motion.div
-                key="m-drop"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-                className="min-w-0 overflow-hidden"
-              >
-                <MobileDivider />
-                <div className={mobileStackCell}>
-                  <span className={barLabel}>Bırakış yeri</span>
-                  <RentSelect
-                    value={toId}
-                    onChange={setToId}
-                    options={returnSelectOptions}
-                    ariaLabel="Bırakış yeri"
-                    className="w-full min-w-0"
-                    triggerClassName={barLocationTrigger}
-                    dropdownShell="hero"
-                  />
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          {differentDropoff ? (
+            <div className="min-w-0">
+              <MobileDivider />
+              <div className={mobileStackCell}>
+                <span className={barLabel}>Bırakış yeri</span>
+                <RentSelect
+                  value={toId}
+                  onChange={setToId}
+                  options={returnSelectOptions}
+                  ariaLabel="Bırakış yeri"
+                  className="w-full min-w-0"
+                  triggerClassName={barLocationTrigger}
+                  dropdownShell="hero"
+                />
+              </div>
+            </div>
+          ) : null}
           <MobileDivider />
           <div className={`${mobileStackCell} relative z-20 min-w-0 overflow-visible`}>
             <HeroRentalRangeDatePickers
@@ -309,32 +306,23 @@ export function HeroRentalSearch({
             />
           </div>
 
-          <AnimatePresence initial={false}>
-            {differentDropoff ? (
-              <motion.div
-                key="d-dropoff"
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                className="flex min-w-0 flex-none"
-              >
-                <BarDivider />
-                <div className={`${barCellLocation} min-w-0`}>
-                  <span className={barLabel}>Bırakış yeri</span>
-                  <RentSelect
-                    value={toId}
-                    onChange={setToId}
-                    options={returnSelectOptions}
-                    ariaLabel="Bırakış yeri"
-                    className="w-full min-w-0"
-                    triggerClassName={barLocationTrigger}
-                    dropdownShell="hero"
-                  />
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          {differentDropoff ? (
+            <div className="flex min-w-0 flex-none">
+              <BarDivider />
+              <div className={`${barCellLocation} min-w-0`}>
+                <span className={barLabel}>Bırakış yeri</span>
+                <RentSelect
+                  value={toId}
+                  onChange={setToId}
+                  options={returnSelectOptions}
+                  ariaLabel="Bırakış yeri"
+                  className="w-full min-w-0"
+                  triggerClassName={barLocationTrigger}
+                  dropdownShell="hero"
+                />
+              </div>
+            </div>
+          ) : null}
 
           <BarDivider />
 

@@ -17,6 +17,7 @@ import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
 import { clearBffBearerCache, fetchHasBffMemberSession } from "@/lib/bff-access-token";
 import { RENT_GUEST_PREFILL_EMAIL_QUERY, RENT_RESERVATION_GUEST_ACK_QUERY } from "@/lib/guestAuthClient";
 import { fetchFleetVehicleById } from "@/lib/rentFleetClient";
+import { isCompleteBookingQuery } from "@/lib/reservationGate";
 import { isLikelyUuidString } from "@/lib/uuidLike";
 
 function fuelLabel(f: FuelType): string {
@@ -182,7 +183,7 @@ export function VehicleDetailView({
     return { alis: start, teslim: toIsoDate(addDays(startD, 3)) };
   }, [hasRangeSelected, pickup, ret]);
 
-  const buildReserveHref = useCallback(() => {
+  const reservationQueryString = useMemo(() => {
     const q = new URLSearchParams();
     q.set("arac", vehicle.id);
     q.set("alis", reserveDatePair.alis);
@@ -190,8 +191,33 @@ export function VehicleDetailView({
     q.set("lokasyon", pickupLocId);
     q.set("lokasyonTeslim", returnLocId);
     if (planVehicleAbroad) q.set("ulkeDisi", "1");
-    return `/rezervasyon?${q.toString()}`;
-  }, [reserveDatePair, pickupLocId, returnLocId, planVehicleAbroad, vehicle.id]);
+    const alisSaat = sp.get("alis_saat")?.trim();
+    const teslimSaat = sp.get("teslim_saat")?.trim();
+    if (alisSaat) q.set("alis_saat", alisSaat);
+    if (teslimSaat) q.set("teslim_saat", teslimSaat);
+    return q.toString();
+  }, [vehicle.id, reserveDatePair, pickupLocId, returnLocId, planVehicleAbroad, sp]);
+
+  const reservationHref = useMemo(() => `/rezervasyon?${reservationQueryString}`, [reservationQueryString]);
+
+  const buildReserveHref = useCallback(() => reservationHref, [reservationHref]);
+
+  const canPrefetchReservation = useMemo(
+    () =>
+      isCompleteBookingQuery({
+        arac: vehicle.id,
+        alis: reserveDatePair.alis,
+        teslim: reserveDatePair.teslim,
+        lokasyon: pickupLocId,
+        lokasyonTeslim: returnLocId,
+      }),
+    [vehicle.id, reserveDatePair.alis, reserveDatePair.teslim, pickupLocId, returnLocId],
+  );
+
+  useEffect(() => {
+    if (!canPrefetchReservation) return;
+    router.prefetch(reservationHref);
+  }, [router, canPrefetchReservation, reservationHref]);
 
   const goToReservationPage = useCallback(() => {
     if (hasMemberReserveSession) {

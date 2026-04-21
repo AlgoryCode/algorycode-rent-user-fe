@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FleetVehicle } from "@/data/fleet";
@@ -318,8 +317,10 @@ function FilterPanelLocations({
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const pickups = pickupFromProps.length > 0 ? pickupFromProps : staticPickupHandoverList();
-  const returns = returnFromProps.length > 0 ? returnFromProps : pickups;
+  const pickupFallback = pickupFromProps.length > 0 ? pickupFromProps : staticPickupHandoverList();
+  const returns = returnFromProps.length > 0 ? returnFromProps : pickupFallback;
+  /** Kiralama başlangıcı: önce DB `RETURN` (teslim) handover listesi; boşsa `PICKUP` / statik yedek. */
+  const pickups = returnFromProps.length > 0 ? returnFromProps : pickupFallback;
 
   const [differentDropoff, setDifferentDropoff] = useState(false);
   const [returnId, setReturnId] = useState("");
@@ -494,6 +495,7 @@ function FilterPanel({
   const [maxPriceDraft, setMaxPriceDraft] = useState(() =>
     filters.maxPrice != null ? String(filters.maxPrice) : "",
   );
+  const [clearFiltersConfirmOpen, setClearFiltersConfirmOpen] = useState(false);
 
   useEffect(() => {
     setMinPriceDraft(filters.minPrice != null ? String(filters.minPrice) : "");
@@ -513,6 +515,7 @@ function FilterPanel({
   }, [maxPriceDraft, minPriceDraft, pushFilters]);
 
   return (
+    <>
     <div className="overflow-hidden rounded-xl border-0 bg-bg-card shadow-none">
       <div className="flex flex-col divide-y divide-border-subtle [&>*]:px-5 [&>*]:py-4 sm:[&>*]:px-6 sm:[&>*]:py-5">
       <div>
@@ -555,14 +558,6 @@ function FilterPanel({
             />
           </label>
         </div>
-        <button
-          type="button"
-          disabled={!priceDraftDirty}
-          onClick={applyBudgetFilter}
-          className="mt-3 w-full rounded-lg bg-btn-solid py-2 text-[13px] font-semibold text-btn-solid-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          Filtrele
-        </button>
       </div>
 
       <FilterPanelLocations
@@ -668,23 +663,68 @@ function FilterPanel({
         </div>
       </div>
 
-      {hasActiveFilters && (
+      <div className="flex flex-col gap-2">
         <button
           type="button"
-          onClick={clearAllFilters}
-          className="w-full rounded-lg border border-border-subtle py-2.5 text-[13px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
+          disabled={!priceDraftDirty}
+          onClick={applyBudgetFilter}
+          className="w-full rounded-lg bg-btn-solid py-2.5 text-[13px] font-semibold text-btn-solid-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
         >
-          Tüm filtreleri temizle
+          Filtrele
         </button>
-      )}
-
-      <Link
-        href="/"
-        className="block text-center text-xs text-text-muted underline-offset-4 hover:text-text hover:underline"
-      >
-        Ana sayfaya dön
-      </Link>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={() => setClearFiltersConfirmOpen(true)}
+            className="w-full rounded-lg border border-border-subtle py-2.5 text-[13px] text-text-muted transition-colors hover:border-accent/30 hover:text-text"
+          >
+            Tüm filtreleri temizle
+          </button>
+        ) : null}
+      </div>
       </div>
     </div>
+
+    {clearFiltersConfirmOpen ? (
+      <div
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 px-4 py-6 backdrop-blur-[2px]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clear-filters-title"
+        onClick={() => setClearFiltersConfirmOpen(false)}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl border border-border-subtle bg-bg-card p-5 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p id="clear-filters-title" className="text-base font-semibold text-text">
+            Emin misiniz?
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-text-muted">
+            Tüm filtreler sıfırlanır. Alış / teslim tarihleri ve konum parametreleri URL&apos;de olduğu gibi kalır.
+          </p>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className="w-full rounded-lg border border-border-subtle py-2.5 text-[13px] font-medium text-text sm:w-auto sm:min-w-[6.5rem]"
+              onClick={() => setClearFiltersConfirmOpen(false)}
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              className="w-full rounded-lg bg-rose-600/90 py-2.5 text-[13px] font-semibold text-white sm:w-auto sm:min-w-[6.5rem]"
+              onClick={() => {
+                clearAllFilters();
+                setClearFiltersConfirmOpen(false);
+              }}
+            >
+              Evet, temizle
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

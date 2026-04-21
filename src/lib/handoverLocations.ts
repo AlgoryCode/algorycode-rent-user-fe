@@ -1,5 +1,3 @@
-import axios from "axios";
-
 import { getRentApiRoot } from "@/lib/api-base";
 
 export type HeroHandoverOption = {
@@ -27,6 +25,7 @@ async function fetchHandoverLocationsJson(kind?: "PICKUP" | "RETURN"): Promise<u
   const qs = new URLSearchParams();
   if (kind) qs.set("kind", kind);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const url = `${getRentApiRoot()}/handover-locations${suffix}`;
 
   if (typeof window !== "undefined") {
     const { fetchHandoverLocationsFromRentApi } = await import("@/lib/rentApi");
@@ -36,11 +35,31 @@ async function fetchHandoverLocationsJson(kind?: "PICKUP" | "RETURN"): Promise<u
 
   const { getAccessTokenFromCookies } = await import("@/lib/server/rentAccessToken");
   const token = await getAccessTokenFromCookies();
-  const url = `${getRentApiRoot()}/handover-locations${suffix}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const { status, data } = await axios.get<unknown>(url, { headers, timeout: 20_000, validateStatus: () => true });
-  if (status < 200 || status >= 300) return [];
+
+  /**
+   * Oturum varsa JWT ile canlı istek (`cache: no-store`); yoksa anonim + kısa Data Cache.
+   * Korumalı gateway’de token olmadan `fetch` 401 dönüyordu — hero statik listeye düşüyordu.
+   */
+  const res = await fetch(url, {
+    headers,
+    ...(token
+      ? { cache: "no-store" as const }
+      : {
+          next: {
+            revalidate: 120,
+            tags: ["handover-locations", kind ? `handover-locations-${kind}` : "handover-locations-all"],
+          },
+        }),
+  });
+  if (!res.ok) return [];
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return [];
+  }
   return Array.isArray(data) ? data : [];
 }
 

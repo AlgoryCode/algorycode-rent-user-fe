@@ -2,13 +2,11 @@
  * Portal / açılır paneller ve arama yüzeyleri (açık tema — tasarım token’ları).
  */
 
-/** Body’ye portal edilen açılır paneller (ör. tarih popover). */
+/** Body’ye portal edilen açılır paneller (ör. tarih popover, RentSelect). — Beyaz, sade; ekstra blur/akcent çizgisi yok. */
 export const rentFloatingDropdownPanelClass = [
-  "isolate overflow-hidden rounded-3xl",
-  "border border-border-subtle/80 bg-bg-card shadow-[0_28px_90px_-28px_rgba(15,23,42,0.12),0_12px_32px_-16px_rgba(15,23,42,0.08)]",
-  "backdrop-blur-3xl backdrop-saturate-[1.45]",
-  "ring-1 ring-inset ring-black/[0.04]",
-  "before:pointer-events-none before:absolute before:inset-x-7 before:top-0 before:z-10 before:h-px before:rounded-full before:bg-gradient-to-r before:from-transparent before:via-accent/20 before:to-transparent before:content-['']",
+  "isolate overflow-hidden rounded-xl",
+  "border border-neutral-200/90 bg-white shadow-md",
+  "ring-1 ring-black/[0.04]",
 ].join(" ");
 
 /** Kapalı <select> / tarih tetikleyicisi */

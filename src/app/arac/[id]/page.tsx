@@ -18,7 +18,7 @@ export default async function AracDetayPage({ params, searchParams }: Props) {
 
   const sp = await searchParams;
   const qs = new URLSearchParams();
-  for (const k of ["alis", "teslim", "lokasyon", "lokasyonTeslim", "ulkeDisi"] as const) {
+  for (const k of ["alis", "teslim", "lokasyon", "lokasyonTeslim", "alis_saat", "teslim_saat", "ulkeDisi"] as const) {
     const v = sp[k];
     if (typeof v === "string" && v) qs.set(k, v);
   }
