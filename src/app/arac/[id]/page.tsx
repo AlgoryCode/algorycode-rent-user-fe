@@ -3,6 +3,7 @@ import { SiteLayout } from "@/components/layout/SiteLayout";
 import { VehicleDetailView } from "@/components/vehicle/VehicleDetailView";
 import { fetchFleetVehicleById } from "@/lib/rentFleet";
 
+/** `params.id` + `searchParams`; araç GET’i üye JWT ile değişebilir (`rentFleet.server`). */
 export const dynamic = "force-dynamic";
 
 type Props = {

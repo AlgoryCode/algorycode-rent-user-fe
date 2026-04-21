@@ -14,7 +14,10 @@ import {
 import { fetchHeroHandoverOptions } from "@/lib/handoverLocations";
 import { fetchUnifiedFleet } from "@/lib/rentFleet";
 
-/** URL sorgusu ile filo; statik önbellek `searchParams`’ı yok sayar — Araç Bul sonrası liste güncellenir. */
+/**
+ * `searchParams` + rent API (`fetchUnifiedFleet` / handover) her istekte güncel veri ister;
+ * `cookies()` içeren sunucu fetch’leri tam statik ISR ile uyumlu değildir — edge HTML önbelleği yoktur.
+ */
 export const dynamic = "force-dynamic";
 
 type Props = {

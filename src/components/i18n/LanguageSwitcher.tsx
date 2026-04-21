@@ -1,10 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useI18n } from "@/components/i18n/LocaleProvider";
-import { LangCurrencySheet } from "@/components/i18n/LangCurrencySheet";
 import { ChevronDownIcon } from "@/components/ui/Icons";
 import { LOCALE_FLAG } from "@/lib/i18n/config";
+
+const LangCurrencySheet = dynamic(
+  () => import("@/components/i18n/LangCurrencySheet").then((m) => ({ default: m.LangCurrencySheet })),
+  { ssr: false },
+);
 
 export function LanguageSwitcher({ tone = "default" }: { tone?: "default" | "navy" }) {
   const { locale, currency, t } = useI18n();

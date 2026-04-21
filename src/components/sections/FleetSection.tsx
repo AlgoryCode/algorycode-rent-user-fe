@@ -39,7 +39,7 @@ export function FleetSection({
         <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
           {preview.map((car, index) => (
             <Reveal key={car.id} delay={index * 0.06} y={24}>
-              <VehicleCard vehicle={car} querySuffix={vehicleCardQuerySuffix} />
+              <VehicleCard vehicle={car} querySuffix={vehicleCardQuerySuffix} imagePriority={index < previewCount} />
             </Reveal>
           ))}
         </div>

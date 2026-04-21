@@ -1,7 +1,6 @@
-import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
-import { BookingWizard } from "@/components/booking/BookingWizard";
 import { firstSearchParam, isCompleteBookingQuery } from "@/lib/reservationGate";
 import { fetchFleetVehicleById } from "@/lib/rentFleet";
 
@@ -16,6 +15,11 @@ function RezervasyonFallback() {
     </div>
   );
 }
+
+const BookingWizard = dynamic(
+  () => import("@/components/booking/BookingWizard").then((m) => ({ default: m.BookingWizard })),
+  { loading: () => <RezervasyonFallback /> },
+);
 
 export default async function Page({ searchParams }: Props) {
   const sp = await searchParams;
@@ -38,9 +42,7 @@ export default async function Page({ searchParams }: Props) {
   return (
     <SiteLayout>
       <main>
-        <Suspense fallback={<RezervasyonFallback />}>
-          <BookingWizard vehicle={vehicle} />
-        </Suspense>
+        <BookingWizard vehicle={vehicle} />
       </main>
     </SiteLayout>
   );

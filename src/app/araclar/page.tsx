@@ -4,6 +4,7 @@ import { flattenSearchParams, parseFleetAvailabilityFromFlatParams } from "@/lib
 import { fetchHeroHandoverOptions } from "@/lib/handoverLocations";
 import { fetchUnifiedFleet } from "@/lib/rentFleet";
 
+/** Tarih/konum sorgusu ve rent API ile kişiselleştirilmiş liste; `rentFleet` + handover sunucu çağrıları dinamik. */
 export const dynamic = "force-dynamic";
 
 type Props = {

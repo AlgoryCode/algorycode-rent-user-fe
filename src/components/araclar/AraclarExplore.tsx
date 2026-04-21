@@ -240,7 +240,13 @@ export function AraclarExplore({
             ) : (
               <div className="mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
                 {results.map((v, i) => (
-                  <VehicleCard key={v.id} vehicle={v} querySuffix={querySuffix} revealDelay={i * 0.06} />
+                  <VehicleCard
+                    key={v.id}
+                    vehicle={v}
+                    querySuffix={querySuffix}
+                    revealDelay={i * 0.06}
+                    imagePriority={i < 6}
+                  />
                 ))}
               </div>
             )}

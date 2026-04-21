@@ -18,11 +18,14 @@ function fuelLabel(f: FuelType): string {
 export function VehicleCard({
   vehicle,
   querySuffix = "",
+  imagePriority = false,
 }: {
   vehicle: FleetVehicle;
   querySuffix?: string;
   /** Geriye dönük; animasyon kullanılmıyor. */
   revealDelay?: number;
+  /** LCP: yalnızca ilk viewport satırları için `true` (ör. grid indeksi 0–5). */
+  imagePriority?: boolean;
 }) {
   const { formatPrice } = useI18n();
   const href = `/arac/${vehicle.id}${querySuffix ? `?${querySuffix}` : ""}`;
@@ -42,6 +45,7 @@ export function VehicleCard({
               alt={vehicle.imageAlt}
               fill
               quality={88}
+              priority={imagePriority}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
               className="object-cover object-center transition-transform duration-300 ease-out group-hover:scale-[1.02]"
             />
