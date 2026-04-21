@@ -1,8 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -12,14 +10,14 @@ import { pickupLocations } from "@/data/locations";
 import { compareIso } from "@/lib/calendarGrid";
 import { addDays, parseIsoDate, rentalNights, todayIso, toIsoDate } from "@/lib/dates";
 import { CalendarDaysIcon } from "@/components/ui/Icons";
+import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { CheckCircleSoftIcon, MapPinGarageIcon, XCircleSoftIcon } from "@/components/ui/VehicleSpecIcons";
 import { VehicleRentalFaqPanel } from "@/components/vehicle/VehicleRentalFaqPanel";
 import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
 import { clearBffBearerCache, fetchHasBffMemberSession } from "@/lib/bff-access-token";
 import { RENT_GUEST_PREFILL_EMAIL_QUERY, RENT_RESERVATION_GUEST_ACK_QUERY } from "@/lib/guestAuthClient";
-
-const defaultGarageCopy =
-  "İstanbul, Maslak — Filo hazırlık noktası (demo). Teslim öncesi araç bu bölgededir.";
+import { fetchFleetVehicleById } from "@/lib/rentFleetClient";
+import { isLikelyUuidString } from "@/lib/uuidLike";
 
 function fuelLabel(f: FuelType): string {
   const labels: Record<FuelType, string> = {
@@ -70,7 +68,7 @@ function GalleryThumb({
 }
 
 export function VehicleDetailView({
-  vehicle,
+  vehicle: initialVehicle,
   queryString,
 }: {
   vehicle: FleetVehicle;
@@ -78,9 +76,30 @@ export function VehicleDetailView({
 }) {
   const { formatPrice } = useI18n();
   const router = useRouter();
+  const [vehicle, setVehicle] = useState(initialVehicle);
   const [activeImage, setActiveImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const sp = useMemo(() => new URLSearchParams(queryString), [queryString]);
+
+  useEffect(() => {
+    setVehicle(initialVehicle);
+  }, [initialVehicle.id]);
+
+  useEffect(() => {
+    if (!isLikelyUuidString(initialVehicle.id)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const v = await fetchFleetVehicleById(initialVehicle.id);
+        if (!cancelled && v) setVehicle(v);
+      } catch {
+        /* SSR / ağ: mevcut araç verisi */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialVehicle.id]);
 
   const galleryImages = useMemo(
     () => (vehicle.gallery.length > 0 ? vehicle.gallery : [vehicle.image]),
@@ -109,10 +128,15 @@ export function VehicleDetailView({
 
   const pickup = sp.get("alis") || "";
   const ret = sp.get("teslim") || "";
+  /**
+   * Rezervasyon URL’si `lokasyon`: önce gerçek handover kimliği (detaydaki “Alış” ile aynı),
+   * sonra `pickupLocationId` (çoğu zaman slug / ülke fallback’i — API aracında handover’ı ezer).
+   */
   const defaultLocId =
-    vehicle.pickupHandoverForBooking?.id ??
-    vehicle.defaultPickupHandoverLocationId ??
-    pickupLocations[0]?.id ??
+    vehicle.pickupHandoverForBooking?.id?.trim() ||
+    vehicle.defaultPickupHandoverLocationId?.trim() ||
+    vehicle.pickupLocationId ||
+    pickupLocations[0]?.id ||
     "ist-airport-ist";
   const defaultReturnLocId = (() => {
     const rh = vehicle.returnHandoversForBooking;
@@ -177,8 +201,6 @@ export function VehicleDetailView({
     setGuestSubflow(false);
     setAuthPromptOpen(true);
   }, [hasMemberReserveSession, buildReserveHref, router]);
-
-  const garageText = vehicle.garageLocation ?? defaultGarageCopy;
 
   /** Hero: kompakt teknik özet (lacivert blokta okunaklı, sade). */
   const heroVehicleSpecs = useMemo(
@@ -248,25 +270,16 @@ export function VehicleDetailView({
             </button>
           </div>
           <div className="relative aspect-[16/10] max-h-[min(78vh,720px)] w-full overflow-hidden rounded-sm border border-white/20 bg-black/50 shadow-2xl">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeImage}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0"
-              >
-                <Image
-                  src={galleryImages[activeImage] ?? vehicle.image}
-                  alt={vehicle.imageAlt}
-                  fill
-                  className="object-contain"
-                  sizes="(max-width: 1024px) 100vw, 1024px"
-                  priority
-                />
-              </motion.div>
-            </AnimatePresence>
+            <div key={activeImage} className="absolute inset-0">
+              <Image
+                src={galleryImages[activeImage] ?? vehicle.image}
+                alt={vehicle.imageAlt}
+                fill
+                className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 1024px"
+                priority
+              />
+            </div>
             {galleryImages.length > 1 && (
               <>
                 <button
@@ -376,23 +389,7 @@ export function VehicleDetailView({
       )}
       <section className="border-b border-white/10 bg-navy-hero text-white">
         <div className="mx-auto max-w-6xl px-3 pb-10 pt-5 sm:px-5 sm:pb-12 lg:px-8">
-          <nav className="flex flex-wrap items-center gap-2 text-[11px] font-medium tracking-wide text-white/50 sm:text-xs">
-            <Link href="/" className="transition-colors hover:text-white">
-              Ana sayfa
-            </Link>
-            <span className="text-white/25" aria-hidden>
-              /
-            </span>
-            <Link href="/araclar" className="transition-colors hover:text-white">
-              Araçlar
-            </Link>
-            <span className="text-white/25" aria-hidden>
-              /
-            </span>
-            <span className="line-clamp-1 font-semibold text-white/90">{vehicle.name}</span>
-          </nav>
-
-          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
+          <div className="mt-2 grid gap-8 sm:mt-4 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
             <div id="arac-galeri" className="min-w-0 scroll-mt-28">
               <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30 shadow-2xl">
                 <button
@@ -404,25 +401,16 @@ export function VehicleDetailView({
                   <span className="pointer-events-none absolute left-3 top-3 z-[1] border border-sky-400/50 bg-sky-600/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
                     {vehicle.category}
                   </span>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={activeImage}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.22 }}
-                      className="absolute inset-0"
-                    >
-                      <Image
-                        src={mainGallerySrc}
-                        alt={vehicle.imageAlt}
-                        fill
-                        className="object-cover transition-transform duration-[480ms] ease-out group-hover:scale-[1.02]"
-                        sizes="(max-width:1024px) 100vw, 58vw"
-                        priority={activeImage === 0}
-                      />
-                    </motion.div>
-                  </AnimatePresence>
+                  <div key={activeImage} className="absolute inset-0">
+                    <Image
+                      src={mainGallerySrc}
+                      alt={vehicle.imageAlt}
+                      fill
+                      className="object-cover transition-transform duration-[480ms] ease-out group-hover:scale-[1.02]"
+                      sizes="(max-width:1024px) 100vw, 58vw"
+                      priority={activeImage === 0}
+                    />
+                  </div>
                   {galleryImages.length > 1 && (
                     <span className="pointer-events-none absolute right-3 top-3 border border-white/30 bg-black/75 px-2.5 py-1 text-[10px] font-bold tabular-nums tracking-widest text-white">
                       {activeImage + 1} / {galleryImages.length}
@@ -499,7 +487,7 @@ export function VehicleDetailView({
                     {vehicle.highlights.slice(0, 5).map((h) => (
                       <li
                         key={h}
-                        className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border-subtle bg-bg-raised/50 px-3 py-1.5 text-xs font-medium text-text dark:bg-bg-deep/40"
+                        className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border-subtle bg-bg-raised/50 px-3 py-1.5 text-xs font-medium text-text"
                       >
                         <CheckCircleSoftIcon className="size-3.5 shrink-0 text-accent" />
                         <span className="min-w-0 leading-snug">{h}</span>
@@ -509,134 +497,183 @@ export function VehicleDetailView({
                 </div>
               ) : null}
 
-              <section id="arac-ozet" className="scroll-mt-28" aria-labelledby="arac-konum-baslik">
-                <h2
-                  id="arac-konum-baslik"
-                  className="text-lg font-bold tracking-tight text-navy-hero dark:text-white"
-                >
-                  Konum
+              <section
+                id="arac-ozet"
+                className="scroll-mt-28 min-w-0"
+                aria-labelledby="arac-konum-paket-baslik"
+              >
+                <h2 id="arac-konum-paket-baslik" className="text-lg font-bold tracking-tight text-navy-hero">
+                  Konum ve paket
                 </h2>
-                <div className="mt-4 flex gap-3 rounded-xl border border-border-subtle bg-bg-raised/50 p-4 shadow-sm dark:bg-bg-deep/40">
-                  <MapPinGarageIcon className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
-                  <div className="min-w-0 space-y-2 text-sm font-medium leading-relaxed text-text">
-                    <p>{garageText}</p>
-                    {vehicle.pickupHandoverForBooking || (vehicle.returnHandoversForBooking?.length ?? 0) > 0 ? (
-                      <div className="space-y-3 border-t border-border-subtle/70 pt-3 text-[13px] text-text-muted">
-                        <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                <div className="mt-4 space-y-8 rounded-xl border border-border-subtle bg-bg-raised/50 p-4 shadow-sm sm:p-6">
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-text-muted">Alış ve teslim</h3>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
+                      <div className="flex shrink-0 flex-row items-center gap-3 sm:flex-col sm:items-start sm:gap-1.5">
+                        <MapPinGarageIcon className="size-6 shrink-0 text-accent" aria-hidden />
+                        <p className="m-0 text-sm font-semibold leading-snug text-text sm:max-w-[10rem]">
                           Alış / teslim noktaları
                         </p>
-                        {vehicle.pickupHandoverForBooking ? (
-                          <p className="m-0">
-                            <span className="font-medium text-text">Alış: </span>
-                            {vehicle.pickupHandoverForBooking.name}
-                            {typeof vehicle.pickupHandoverForBooking.surchargeEur === "number" &&
-                            vehicle.pickupHandoverForBooking.surchargeEur > 0
-                              ? ` · +${vehicle.pickupHandoverForBooking.surchargeEur} €`
-                              : null}
-                          </p>
-                        ) : vehicle.defaultPickupHandoverLocationId ? (
-                          <p className="m-0">
-                            <span className="font-medium text-text">Alış: </span>
-                            {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
-                          </p>
-                        ) : null}
-                        {vehicle.returnHandoversForBooking && vehicle.returnHandoversForBooking.length > 0 ? (
-                          <div>
-                            <p className="m-0 mb-1.5 font-medium text-text">Teslim seçenekleri</p>
-                            <ul className="m-0 list-none space-y-1.5 p-0">
-                              {vehicle.returnHandoversForBooking.map((h) => (
-                                <li
-                                  key={h.id}
-                                  className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 rounded-md border border-border-subtle/60 bg-bg-card/40 px-2.5 py-1.5 text-[12px]"
-                                >
-                                  <span className="min-w-0 text-text">{h.name}</span>
-                                  {typeof h.surchargeEur === "number" && h.surchargeEur > 0 ? (
-                                    <span className="shrink-0 tabular-nums text-accent">+{h.surchargeEur} €</span>
-                                  ) : null}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : vehicle.defaultReturnHandoverLocationId ? (
-                          <p className="m-0">
-                            <span className="font-medium text-text">Teslim: </span>
-                            {vehicle.defaultReturnHandoverName ?? "—"}
-                          </p>
-                        ) : null}
                       </div>
-                    ) : (vehicle.defaultPickupHandoverLocationId || vehicle.defaultReturnHandoverLocationId) ? (
-                      <ul className="list-inside list-disc space-y-1 text-[13px] text-text-muted">
-                        {vehicle.defaultPickupHandoverLocationId ? (
-                          <li>
-                            Varsayılan alış:{" "}
-                            <span className="font-medium text-text">
-                              {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
-                            </span>
-                          </li>
-                        ) : null}
-                        {vehicle.defaultReturnHandoverLocationId ? (
-                          <li>
-                            Varsayılan teslim:{" "}
-                            <span className="font-medium text-text">
-                              {vehicle.defaultReturnHandoverName ?? "—"}
-                            </span>
-                          </li>
-                        ) : null}
-                      </ul>
-                    ) : null}
+                      <div className="min-w-0 flex-1 space-y-3 text-sm font-medium leading-relaxed text-text">
+                        {vehicle.pickupHandoverForBooking || (vehicle.returnHandoversForBooking?.length ?? 0) > 0 ? (
+                          <div className="space-y-4 text-[13px] text-text-muted">
+                            {vehicle.pickupHandoverForBooking ? (
+                              <div className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Alış noktası
+                                </p>
+                                <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-text">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-text">
+                                    <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                    Konum
+                                  </span>
+                                  <span>
+                                    {vehicle.pickupHandoverForBooking.name}
+                                    {typeof vehicle.pickupHandoverForBooking.surchargeEur === "number" &&
+                                    vehicle.pickupHandoverForBooking.surchargeEur > 0
+                                      ? ` · +${vehicle.pickupHandoverForBooking.surchargeEur} €`
+                                      : null}
+                                  </span>
+                                </p>
+                              </div>
+                            ) : vehicle.defaultPickupHandoverLocationId ? (
+                              <div className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Alış noktası
+                                </p>
+                                <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-text">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-text">
+                                    <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                    Konum
+                                  </span>
+                                  <span>
+                                    {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
+                                  </span>
+                                </p>
+                              </div>
+                            ) : null}
+                            {vehicle.returnHandoversForBooking && vehicle.returnHandoversForBooking.length > 0 ? (
+                              <div className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Teslim seçenekleri
+                                </p>
+                                <ul className="m-0 list-none space-y-2 p-0">
+                                  {vehicle.returnHandoversForBooking.map((h) => (
+                                    <li
+                                      key={h.id}
+                                      className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 rounded-md border border-border-subtle/50 bg-bg-raised/40 px-2.5 py-2 text-[13px]"
+                                    >
+                                      <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-text">
+                                        <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                        <span className="min-w-0">{h.name}</span>
+                                      </span>
+                                      {typeof h.surchargeEur === "number" && h.surchargeEur > 0 ? (
+                                        <span className="shrink-0 tabular-nums text-sm font-semibold text-accent">
+                                          +{h.surchargeEur} €
+                                        </span>
+                                      ) : (
+                                        <span className="shrink-0 text-xs text-text-muted">Ek ücret yok</span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : vehicle.defaultReturnHandoverLocationId ? (
+                              <div className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Teslim noktası
+                                </p>
+                                <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-text">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-text">
+                                    <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                    Konum
+                                  </span>
+                                  <span>{vehicle.defaultReturnHandoverName ?? "—"}</span>
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (vehicle.defaultPickupHandoverLocationId || vehicle.defaultReturnHandoverLocationId) ? (
+                          <ul className="m-0 list-none space-y-3 text-[13px] text-text-muted">
+                            {vehicle.defaultPickupHandoverLocationId ? (
+                              <li className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Varsayılan alış
+                                </p>
+                                <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 font-medium text-text">
+                                  <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                  {vehicle.defaultPickupHandoverName ?? vehicle.pickupLocationLabel ?? "—"}
+                                </p>
+                              </li>
+                            ) : null}
+                            {vehicle.defaultReturnHandoverLocationId ? (
+                              <li className="rounded-lg border border-border-subtle/70 bg-bg-card/60 px-3 py-2.5">
+                                <p className="m-0 mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                                  Varsayılan teslim
+                                </p>
+                                <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 font-medium text-text">
+                                  <LocationPinIcon className="size-3.5 shrink-0 text-accent" />
+                                  {vehicle.defaultReturnHandoverName ?? "—"}
+                                </p>
+                              </li>
+                            ) : null}
+                          </ul>
+                        ) : (
+                          <p className="m-0 text-sm text-text-muted">
+                            Bu araç için henüz tanımlı alış/teslim noktası bilgisi yok.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="arac-paket" className="scroll-mt-28 border-t border-border-subtle pt-8">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-text-muted">Paket özeti</h3>
+                    <div className="mt-4 grid gap-8 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border-subtle">
+                      <section className="min-w-0 sm:pr-6">
+                        <div className="flex items-center gap-2">
+                          <CheckCircleSoftIcon className="size-5 shrink-0 text-accent" />
+                          <p className="text-sm font-bold uppercase tracking-wide text-text">Dahil olanlar</p>
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                          Kiralama bedeline dahil edilen hizmet ve güvenceler.
+                        </p>
+                        <ul className="mt-4 space-y-2.5" role="list">
+                          {vehicle.included.map((x) => (
+                            <li key={x} className="flex gap-2.5 text-sm font-medium leading-snug text-text">
+                              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-btn-solid" aria-hidden />
+                              <span>{x}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                      <section className="min-w-0 sm:pl-6">
+                        <div className="flex items-center gap-2">
+                          <XCircleSoftIcon className="size-5 shrink-0 text-text-muted" />
+                          <p className="text-sm font-bold uppercase tracking-wide text-text">Dahil olmayanlar</p>
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                          Ek masraf veya sürücü sorumluluğunda olan kalemler.
+                        </p>
+                        <ul className="mt-4 space-y-2.5" role="list">
+                          {vehicle.notIncluded.map((x) => (
+                            <li key={x} className="flex gap-2.5 text-sm font-medium leading-snug text-text-muted">
+                              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-text-muted/50" aria-hidden />
+                              <span>{x}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    </div>
                   </div>
                 </div>
-                <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
-                  Genel ek hizmetler (sigorta paketleri, bebek koltuğu vb.) rezervasyon sihirbazında sunucu
-                  kataloğundan seçilir; araca özel ücretli seçenekler varsa aynı adımda listelenir.
-                </p>
               </section>
-
-              <div id="arac-paket" className="scroll-mt-28">
-                <h2 className="text-lg font-bold tracking-tight text-navy-hero dark:text-white">Paket özeti</h2>
-                <p className="mt-1 text-sm text-text-muted">Ayrıntılar için SSS bölümüne bakın.</p>
-                <div className="mt-4 grid gap-4 rounded-xl border border-border-subtle bg-bg-raised/30 p-4 sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-border-subtle dark:bg-bg-deep/30">
-                  <section className="sm:pr-4">
-                    <div className="flex items-center gap-2">
-                      <CheckCircleSoftIcon className="size-5 shrink-0 text-accent" />
-                      <h3 className="text-xs font-bold uppercase tracking-wide text-text">Dahil</h3>
-                    </div>
-                    <ul className="mt-3 space-y-2" role="list">
-                      {vehicle.included.slice(0, 5).map((x) => (
-                        <li key={x} className="flex gap-2 text-sm font-medium leading-snug text-text">
-                          <span className="mt-2 size-1 shrink-0 rounded-full bg-btn-solid" aria-hidden />
-                          <span>{x}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {vehicle.included.length > 5 ? (
-                      <p className="mt-2 text-xs text-text-muted">+{vehicle.included.length - 5} madde daha</p>
-                    ) : null}
-                  </section>
-                  <section className="sm:pl-4">
-                    <div className="flex items-center gap-2">
-                      <XCircleSoftIcon className="size-5 shrink-0 text-text-muted" />
-                      <h3 className="text-xs font-bold uppercase tracking-wide text-text">Dahil değil</h3>
-                    </div>
-                    <ul className="mt-3 space-y-2" role="list">
-                      {vehicle.notIncluded.slice(0, 4).map((x) => (
-                        <li key={x} className="flex gap-2 text-sm font-medium leading-snug text-text-muted">
-                          <span className="mt-2 size-1 shrink-0 rounded-full bg-text-muted/50" aria-hidden />
-                          <span>{x}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {vehicle.notIncluded.length > 4 ? (
-                      <p className="mt-2 text-xs text-text-muted">+{vehicle.notIncluded.length - 4} madde daha</p>
-                    ) : null}
-                  </section>
-                </div>
-              </div>
 
             </div>
           </div>
 
-          <div className="mt-14 border-t border-border-subtle pt-10">
+          <div className="mt-14 pt-10">
             <VehicleRentalFaqPanel className="min-w-0" />
           </div>
         </div>

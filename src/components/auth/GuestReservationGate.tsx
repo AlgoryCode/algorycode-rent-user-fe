@@ -180,7 +180,7 @@ export function GuestReservationGate({
 
         {error && (
           <p
-            className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.08] px-3 py-2.5 text-sm leading-relaxed text-text dark:border-rose-400/35 dark:bg-rose-400/[0.12]"
+            className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.08] px-3 py-2.5 text-sm leading-relaxed text-text"
             role="alert"
           >
             {error}

@@ -29,12 +29,15 @@ export function isCurrency(value: string): value is CurrencyCode {
  * Filo fiyatları TRY cinsinden; gösterim için gösterge kur (yaklaşık, bilgilendirme).
  * Gerçek ödeme / API tarafı TRY üzerinden kalır.
  */
+/** 1 EUR için vitrin / `eurToTry` ile aynı gösterge TRY (`fromTryAmount` EUR kolonu). */
+export const TRY_PER_EUR_REFERENCE = 36.2;
+
 /** Gösterge kurlar (TRY bazlı, bilgilendirme). */
 export function fromTryAmount(amountTry: number, currency: CurrencyCode): number {
   if (currency === "TRY") return amountTry;
   const perUnitTry: Record<Exclude<CurrencyCode, "TRY">, number> = {
     USD: 33.5,
-    EUR: 36.2,
+    EUR: TRY_PER_EUR_REFERENCE,
     GBP: 43,
     CHF: 38,
     SAR: 8.9,

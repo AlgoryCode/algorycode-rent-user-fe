@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,14 +17,10 @@ import {
   type FleetFilterState,
   type SortKey,
 } from "@/lib/fleetFilters";
-import { compareIso } from "@/lib/calendarGrid";
-import { addDays, parseIsoDate, toIsoDate } from "@/lib/dates";
 import { VehicleCard } from "@/components/vehicle/VehicleCard";
 import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
 import { RentSelect } from "@/components/ui/RentSelect";
-import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
-
 const transmissions = [
   { id: "" as const, label: "Tümü" },
   { id: "otomatik" as const, label: "Otomatik" },
@@ -124,7 +119,7 @@ export function AraclarExplore({
 
   return (
     <div className="pb-16 pt-[var(--header-h)]">
-      <div className="relative overflow-hidden border-b border-border-subtle bg-bg-deep px-4 py-10 sm:px-6 sm:py-12">
+      <div className="relative overflow-hidden border-b border-border-subtle bg-bg-raised px-4 py-10 sm:px-6 sm:py-12">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.07]"
           style={{
@@ -135,11 +130,7 @@ export function AraclarExplore({
           aria-hidden
         />
         <div className="relative mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          >
+          <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-accent">Kürasyon filo</p>
             <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-[1.12] tracking-tight text-text sm:text-4xl">
               Filonuzdaki <span className="text-accent">doğru aracı</span> seçin
@@ -148,7 +139,7 @@ export function AraclarExplore({
               Kurumsal güvenceyle şeffaf günlük fiyatlar; filtreler ve arama URL ile paylaşılabilir. Tarih ve
               alış / bırakış noktasını soldaki filtrelerde (mobilde &quot;Filtreler&quot;) seçin.
             </p>
-          </motion.div>
+          </div>
         </div>
       </div>
 
@@ -188,14 +179,13 @@ export function AraclarExplore({
               )}
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <motion.button
+              <button
                 type="button"
-                className="rounded-md border border-border-subtle px-3 py-2 text-[13px] font-medium text-text lg:hidden"
-                whileTap={{ scale: 0.98 }}
+                className="rounded-md border border-border-subtle px-3 py-2 text-[13px] font-medium text-text active:scale-[0.98] lg:hidden"
                 onClick={() => setMobileFiltersOpen(true)}
               >
                 Filtreler
-              </motion.button>
+              </button>
               <RentSelect
                 value={filters.sort}
                 onChange={(v) => pushFilters({ sort: v as SortKey })}
@@ -222,101 +212,81 @@ export function AraclarExplore({
             </div>
           </div>
 
-          <AnimatePresence mode="wait">
-            {results.length === 0 ? (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="mt-10 border border-border-subtle bg-bg-card p-8 text-center sm:p-10"
-              >
+          {results.length === 0 ? (
+              <div className="mt-10 border border-border-subtle bg-bg-card p-8 text-center sm:p-10">
                 <p className="text-xl font-semibold text-text">
-                  {rentalWindowInUrl ? "Uygun araç bulunamadı" : "Sonuç bulunamadı"}
+                  {!rentalWindowInUrl
+                    ? "Aramayı başlatın"
+                    : vehicles.length === 0
+                      ? "Uygun araç bulunamadı"
+                      : "Sonuç bulunamadı"}
                 </p>
                 <p className="mt-2 text-sm text-text-muted">
-                  {rentalWindowInUrl
-                    ? "Seçtiğiniz tarih ve konum için şu an listelenecek uygun araç yok. Tarihleri veya alış noktasını değiştirip tekrar deneyebilirsiniz."
-                    : "Filtreleri gevşetmeyi veya arama metnini temizlemeyi deneyin."}
+                  {!rentalWindowInUrl
+                    ? "Sol menüden veya üstteki formdan alış ve teslim tarihlerini seçin; uygun araçlar bu sayfada listelenir. Tarih seçildiğinde liste sunucudan yüklenir."
+                    : vehicles.length === 0
+                      ? "Seçtiğiniz tarih ve konum için şu an listelenecek uygun araç yok. Tarihleri veya alış noktasını değiştirip tekrar deneyebilirsiniz."
+                      : "Filtreleri gevşetmeyi veya arama metnini temizlemeyi deneyin."}
                 </p>
-                <motion.button
-                  type="button"
-                  onClick={clearAllFilters}
-                  className="mt-5 rounded-md bg-btn-solid px-5 py-2.5 text-[13px] font-semibold text-btn-solid-fg"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  Filtreleri sıfırla
-                </motion.button>
-              </motion.div>
+                {rentalWindowInUrl ? (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="mt-5 rounded-md bg-btn-solid px-5 py-2.5 text-[13px] font-semibold text-btn-solid-fg"
+                  >
+                    Filtreleri sıfırla
+                  </button>
+                ) : null}
+              </div>
             ) : (
-              <motion.div
-                key="grid"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4"
-              >
+              <div className="mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
                 {results.map((v, i) => (
                   <VehicleCard key={v.id} vehicle={v} querySuffix={querySuffix} revealDelay={i * 0.06} />
                 ))}
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
         </div>
       </div>
 
-      <AnimatePresence>
-        {mobileFiltersOpen && (
-          <motion.div
-            className="fixed inset-0 z-50 flex lg:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <button
-              type="button"
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-              aria-label="Filtreleri kapat"
-              onClick={() => setMobileFiltersOpen(false)}
-            />
-            <motion.div
-              className="relative ml-auto flex h-full w-[min(100%,380px)] flex-col border-l border-border-subtle bg-bg-raised shadow-xl"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-            >
-              <div className="flex items-center justify-between border-b border-border-subtle px-4 py-4">
-                <p className="text-base font-semibold text-text">Filtreler</p>
-                <button
-                  type="button"
-                  className="rounded-md border border-border-subtle px-3 py-1 text-[13px] text-text-muted"
-                  onClick={() => setMobileFiltersOpen(false)}
-                >
-                  Kapat
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <FilterPanel
-                  filters={filters}
-                  bounds={bounds}
-                  categories={categories}
-                  pushFilters={(p) => {
-                    pushFilters(p);
-                  }}
-                  clearAllFilters={() => {
-                    clearAllFilters();
-                    setMobileFiltersOpen(false);
-                  }}
-                  hasActiveFilters={!!hasActiveFilters}
-                  pickupLocationOptions={pickupHandoverOptions}
-                  returnLocationOptions={returnHandoverOptions}
-                />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mobileFiltersOpen ? (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            aria-label="Filtreleri kapat"
+            onClick={() => setMobileFiltersOpen(false)}
+          />
+          <div className="relative ml-auto flex h-full w-[min(100%,380px)] flex-col border-l border-border-subtle bg-bg-raised shadow-xl">
+            <div className="flex items-center justify-between border-b border-border-subtle px-4 py-4">
+              <p className="text-base font-semibold text-text">Filtreler</p>
+              <button
+                type="button"
+                className="rounded-md border border-border-subtle px-3 py-1 text-[13px] text-text-muted"
+                onClick={() => setMobileFiltersOpen(false)}
+              >
+                Kapat
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <FilterPanel
+                filters={filters}
+                bounds={bounds}
+                categories={categories}
+                pushFilters={(p) => {
+                  pushFilters(p);
+                }}
+                clearAllFilters={() => {
+                  clearAllFilters();
+                  setMobileFiltersOpen(false);
+                }}
+                hasActiveFilters={!!hasActiveFilters}
+                pickupLocationOptions={pickupHandoverOptions}
+                returnLocationOptions={returnHandoverOptions}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -491,95 +461,6 @@ function FilterPanelLocations({
   );
 }
 
-/** Sol filtre sütunu: tarih/saat URL’ye yazılır; liste anında güncellenir. */
-function FilterPanelRentalDates({
-  filters,
-  bounds,
-}: {
-  filters: FleetFilterState;
-  bounds: { min: number; max: number };
-}) {
-  const sp = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const spKey = sp.toString();
-
-  const [pickupDate, setPickupDate] = useState(() => toIsoDate(addDays(new Date(), 1)));
-  const [returnDate, setReturnDate] = useState(() => toIsoDate(addDays(new Date(), 2)));
-  const [pickupTime, setPickupTime] = useState("10:00");
-  const [returnTime, setReturnTime] = useState("10:00");
-
-  useEffect(() => {
-    const params = new URLSearchParams(spKey);
-    const alis = params.get("alis")?.trim();
-    const teslim = params.get("teslim")?.trim();
-    const as = params.get("alis_saat")?.trim();
-    const ts = params.get("teslim_saat")?.trim();
-    if (alis && parseIsoDate(alis)) setPickupDate(alis);
-    if (teslim && parseIsoDate(teslim)) setReturnDate(teslim);
-    if (as) setPickupTime(as);
-    if (ts) setReturnTime(ts);
-  }, [spKey]);
-
-  const maxSearchDate = useMemo(() => toIsoDate(addDays(new Date(), 400)), []);
-  const minDate = useMemo(() => toIsoDate(addDays(new Date(), 0)), []);
-
-  const pushRentalDates = useCallback(
-    (patch: Partial<{ alis: string; teslim: string; alis_saat: string; teslim_saat: string }>) => {
-      const alis = patch.alis ?? pickupDate;
-      const teslimRaw = patch.teslim ?? returnDate;
-      const p0 = parseIsoDate(alis);
-      let teslim = teslimRaw;
-      if (p0) {
-        const r0 = parseIsoDate(teslimRaw);
-        if (!r0 || compareIso(teslimRaw, alis) <= 0) teslim = toIsoDate(addDays(p0, 1));
-      }
-      const next = mergeRentalParamsIntoSearchParams(new URLSearchParams(sp.toString()), {
-        alis,
-        teslim,
-        alis_saat: patch.alis_saat ?? pickupTime,
-        teslim_saat: patch.teslim_saat ?? returnTime,
-      });
-      router.push(`${pathname}?${buildAraclarQueryString(next, filters, bounds)}`);
-    },
-    [bounds, filters, pathname, pickupDate, pickupTime, returnDate, returnTime, router, sp],
-  );
-
-  return (
-    <div className="rounded-lg bg-bg-deep/15 px-2.5 py-2 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Tarih ve saat</p>
-      <p className="mt-0.5 text-[10px] leading-tight text-text-muted">Tarihe tıklayınca takvim açılır.</p>
-      <div className="mt-2 min-w-0">
-        <HeroRentalRangeDatePickers
-          layout="heroSearchBar"
-          compact
-          desktopPopoverAlign="left"
-          className="w-full min-w-0"
-          minDate={minDate}
-          maxDate={maxSearchDate}
-          pickupDate={pickupDate}
-          returnDate={returnDate}
-          onRangeCommit={(p, r) => {
-            setPickupDate(p);
-            setReturnDate(r);
-            pushRentalDates({ alis: p, teslim: r });
-          }}
-          pickTime={pickupTime}
-          returnTime={returnTime}
-          onPickTime={(t) => {
-            setPickupTime(t);
-            pushRentalDates({ alis_saat: t });
-          }}
-          onReturnTime={(t) => {
-            setReturnTime(t);
-            pushRentalDates({ teslim_saat: t });
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function parseOptionalNonNegativeTry(raw: string): number | null | "invalid" {
   const t = raw.trim().replace(",", ".");
   if (t === "") return null;
@@ -632,9 +513,8 @@ function FilterPanel({
   }, [maxPriceDraft, minPriceDraft, pushFilters]);
 
   return (
-    <div className="space-y-6 rounded-xl bg-bg-card p-5 shadow-sm sm:p-6 dark:shadow-none">
-      <FilterPanelRentalDates filters={filters} bounds={bounds} />
-
+    <div className="overflow-hidden rounded-xl border-0 bg-bg-card shadow-none">
+      <div className="flex flex-col divide-y divide-border-subtle [&>*]:px-5 [&>*]:py-4 sm:[&>*]:px-6 sm:[&>*]:py-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">
           Günlük bütçe
@@ -675,15 +555,14 @@ function FilterPanel({
             />
           </label>
         </div>
-        <motion.button
+        <button
           type="button"
           disabled={!priceDraftDirty}
-          whileTap={priceDraftDirty ? { scale: 0.98 } : undefined}
           onClick={applyBudgetFilter}
           className="mt-3 w-full rounded-lg bg-btn-solid py-2 text-[13px] font-semibold text-btn-solid-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
         >
           Filtrele
-        </motion.button>
+        </button>
       </div>
 
       <FilterPanelLocations
@@ -805,6 +684,7 @@ function FilterPanel({
       >
         Ana sayfaya dön
       </Link>
+      </div>
     </div>
   );
 }

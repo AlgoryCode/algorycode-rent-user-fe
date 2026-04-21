@@ -99,13 +99,13 @@ export function RentSelect({
   }, [panelOpen, dropdownShell]);
 
   const heroPanelClass =
-    `overflow-hidden rounded-2xl border border-neutral-200/90 bg-white p-2 shadow-[0_32px_90px_-36px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.04] dark:border-white/10 dark:bg-bg-card dark:ring-white/[0.06] ${panelClassName}`.trim();
+    `overflow-hidden rounded-2xl border border-neutral-200/90 bg-white p-2 shadow-[0_32px_90px_-36px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.04] ${panelClassName}`.trim();
 
   const optionRowClass = (selected: boolean) =>
     dropdownShell === "hero"
       ? selected
         ? "mb-1 flex w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/16 px-2.5 py-2 text-left text-sm font-medium text-accent transition-[border-color,background-color,color,transform] duration-150 last:mb-0"
-        : "mb-1 flex w-full items-center justify-between rounded-xl border border-neutral-200/70 bg-white px-2.5 py-2 text-left text-sm text-neutral-800 transition-[border-color,background-color,color,transform] duration-150 last:mb-0 hover:border-accent/30 hover:bg-neutral-50 dark:border-white/10 dark:bg-bg-card/50 dark:text-text dark:hover:bg-bg-card/70"
+        : "mb-1 flex w-full items-center justify-between rounded-xl border border-neutral-200/70 bg-white px-2.5 py-2 text-left text-sm text-neutral-800 transition-[border-color,background-color,color,transform] duration-150 last:mb-0 hover:border-accent/30 hover:bg-neutral-50"
       : selected
         ? "mb-1 flex w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/16 px-2.5 py-2 text-left text-sm text-accent transition-[border-color,background-color,color,transform] duration-150 last:mb-0"
         : "mb-1 flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-sm text-text transition-[border-color,background-color,color,transform] duration-150 last:mb-0 hover:-translate-y-[1px] hover:border-accent/20 hover:bg-accent/10 hover:text-accent";

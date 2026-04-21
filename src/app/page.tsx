@@ -1,3 +1,4 @@
+import type { FleetVehicle } from "@/data/fleet";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { CategoryShowcaseSection } from "@/components/home/CategoryShowcaseSection";
 import { FaqContactSection } from "@/components/home/FaqContactSection";
@@ -36,7 +37,7 @@ export default async function Home({ searchParams }: Props) {
   const flat = flattenSearchParams(raw);
   const availability = parseFleetAvailabilityFromFlatParams(flat);
   const [vehicles, pickupHandoverOptions, returnHandoverOptions] = await Promise.all([
-    fetchUnifiedFleet(availability),
+    availability ? fetchUnifiedFleet(availability) : Promise.resolve([] as FleetVehicle[]),
     fetchHeroHandoverOptions("PICKUP"),
     fetchHeroHandoverOptions("RETURN"),
   ]);
@@ -52,6 +53,7 @@ export default async function Home({ searchParams }: Props) {
           vehicles={vehicles}
           exploreHref={exploreHref}
           vehicleCardQuerySuffix={preserveQs}
+          hasAvailabilityQuery={Boolean(availability)}
         />
         <MotivationSection />
         <HowItWorks />

@@ -1,13 +1,15 @@
 import { pickupLocations } from "@/data/locations";
 import { parseIsoDate, rentalNights } from "@/lib/dates";
-
-const uuidLikeRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { isLikelyUuidString } from "@/lib/uuidLike";
 
 function isAllowedLocationId(id: string): boolean {
   const t = id.trim();
   if (!t) return false;
   if (pickupLocations.some((l) => l.id === t)) return true;
-  return uuidLikeRe.test(t);
+  if (isLikelyUuidString(t)) return true;
+  /** Rent API: UUID → sayısal PK / bigint string; tire yok → önceki gate reddediyordu. */
+  if (/^\d{1,24}$/.test(t)) return true;
+  return false;
 }
 
 export function firstSearchParam(

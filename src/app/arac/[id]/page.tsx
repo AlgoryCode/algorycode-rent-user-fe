@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { VehicleDetailView } from "@/components/vehicle/VehicleDetailView";
-import { fetchFleetVehicleById, fetchUnifiedFleet } from "@/lib/rentFleet";
+import { fetchFleetVehicleById } from "@/lib/rentFleet";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,7 @@ type Props = {
 export default async function AracDetayPage({ params, searchParams }: Props) {
   const { id } = await params;
 
-  let vehicle = await fetchFleetVehicleById(id);
-  if (!vehicle) {
-    const merged = await fetchUnifiedFleet();
-    vehicle = merged.find((v) => v.id === id) ?? null;
-  }
+  const vehicle = await fetchFleetVehicleById(id);
   if (!vehicle) notFound();
 
   const sp = await searchParams;

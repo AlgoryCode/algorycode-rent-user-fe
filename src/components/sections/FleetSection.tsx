@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import type { FleetVehicle } from "@/data/fleet";
 import { AnimatedButton } from "@/components/ui/AnimatedButton";
 import { Reveal } from "@/components/ui/Reveal";
@@ -12,12 +11,15 @@ export function FleetSection({
   vehicles = [],
   exploreHref = "/araclar",
   vehicleCardQuerySuffix = "",
+  hasAvailabilityQuery = false,
 }: {
   vehicles?: FleetVehicle[];
   /** “Tümünü gör” hedefi (örn. `/araclar?alis=…`) */
   exploreHref?: string;
   /** Araç kartı → detay linkine eklenecek sorgu (`alis=…` vb.) */
   vehicleCardQuerySuffix?: string;
+  /** URL’de geçerli tarih aralığı varken filo sunucudan yüklendi. */
+  hasAvailabilityQuery?: boolean;
 }) {
   const preview = vehicles.slice(0, previewCount);
 
@@ -33,24 +35,27 @@ export function FleetSection({
         </p>
       </Reveal>
 
-      <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
-        {preview.map((car, index) => (
-          <Reveal key={car.id} delay={index * 0.06} y={24}>
-            <VehicleCard vehicle={car} querySuffix={vehicleCardQuerySuffix} />
-          </Reveal>
-        ))}
-      </div>
+      {preview.length > 0 ? (
+        <div className="mt-10 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
+          {preview.map((car, index) => (
+            <Reveal key={car.id} delay={index * 0.06} y={24}>
+              <VehicleCard vehicle={car} querySuffix={vehicleCardQuerySuffix} />
+            </Reveal>
+          ))}
+        </div>
+      ) : (
+        <p className="mx-auto mt-10 max-w-lg text-center text-sm leading-relaxed text-text-muted">
+          {hasAvailabilityQuery
+            ? "Bu tarih aralığı için öne çıkan araç bulunamadı. Tarihleri değiştirip tekrar deneyebilir veya tüm listeyi açabilirsiniz."
+            : "Üstteki formdan alış ve teslim tarihlerini seçip «Araç Bul» ile arama yaptığınızda, uygun araçlar burada özetlenir."}
+        </p>
+      )}
 
-      <motion.div
-        className="mt-10 flex justify-center"
-        initial={{ opacity: 0, y: 8 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-      >
+      <div className="mt-10 flex justify-center">
         <AnimatedButton variant="ghost" href={exploreHref}>
-          Tümünü gör ({vehicles.length})
+          {vehicles.length > 0 ? `Tümünü gör (${vehicles.length})` : "Araç listesine git"}
         </AnimatedButton>
-      </motion.div>
+      </div>
     </section>
   );
 }

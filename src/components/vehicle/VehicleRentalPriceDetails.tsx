@@ -24,7 +24,7 @@ export function VehicleRentalPriceDetails({
   const shell =
     variant === "plain"
       ? "border-0 bg-transparent p-0 shadow-none"
-      : "border-2 border-border-subtle bg-bg-deep/30 p-4 shadow-inner sm:p-5 dark:bg-black/20";
+      : "border-2 border-border-subtle bg-bg-raised p-4 shadow-inner sm:p-5";
 
   return (
     <div className={`${shell} ${className}`}>

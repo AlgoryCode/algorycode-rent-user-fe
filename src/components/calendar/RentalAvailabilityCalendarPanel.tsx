@@ -326,7 +326,7 @@ export function RentalAvailabilityCalendarPanel({
 
       <div className={`min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3 ${tight ? "lg:px-1 lg:py-1" : "lg:px-2 lg:py-1.5"}`}>
         <div
-          className={`mb-2 flex items-center justify-between px-0.5 py-0.5 lg:mb-1.5 ${unframed ? "rounded-none border-0 bg-bg-raised/40 dark:bg-bg-deep/50" : "rounded-lg border border-border-subtle/70 bg-transparent"}`}
+          className={`mb-2 flex items-center justify-between px-0.5 py-0.5 lg:mb-1.5 ${unframed ? "rounded-none border-0 bg-bg-raised/40" : "rounded-lg border border-border-subtle/70 bg-transparent"}`}
         >
           <button
             type="button"
@@ -396,10 +396,10 @@ export function RentalAvailabilityCalendarPanel({
                   </div>
                 ))}
               </div>
-              <div className="mt-0.5 grid max-w-full grid-cols-7 gap-0 divide-x divide-y divide-border-subtle/55 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-raised/15 dark:bg-bg-deep/25">
+              <div className="mt-0.5 grid max-w-full grid-cols-7 gap-0 divide-x divide-y divide-border-subtle/55 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-raised/15">
                 {cells.map((cell, i) =>
                   cell == null ? (
-                    <div key={`e-${i}`} className="aspect-square min-w-0 bg-bg-deep/5 dark:bg-bg-deep/20" aria-hidden />
+                    <div key={`e-${i}`} className="aspect-square min-w-0 bg-bg-raised/80" aria-hidden />
                   ) : (
                     <div key={`${year}-${month}-${cell}`} className="aspect-square min-w-0">
                       <AvailabilityCalendarDay
@@ -550,7 +550,7 @@ function AvailabilityCalendarDay({
   const disabled = disabledPast;
 
   const freeCell =
-    "border-0 bg-transparent text-text hover:bg-bg-raised/70 dark:hover:bg-bg-deep/55";
+    "border-0 bg-transparent text-text hover:bg-bg-raised/70";
 
   const edgeCell =
     "z-[1] border-0 bg-btn-solid font-semibold text-btn-solid-fg shadow-none hover:brightness-105";

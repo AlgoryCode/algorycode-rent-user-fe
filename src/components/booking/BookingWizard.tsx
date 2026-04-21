@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -10,14 +9,13 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import type { FleetVehicle } from "@/data/fleet";
 import { blockedDaysInInclusiveRange } from "@/data/availability";
 import { useVehicleBlockedIsoDates } from "@/hooks/useVehicleBlockedIsoDates";
-import { getLocationById, pickupLocations } from "@/data/locations";
+import { getLocationById } from "@/data/locations";
 import { HeroRentalRangeDatePickers } from "@/components/ui/HeroRentalRangeDatePickers";
 import { compareIso } from "@/lib/calendarGrid";
 import { addDays, parseIsoDate, rentalNights, formatTrDate, todayIso, toIsoDate } from "@/lib/dates";
@@ -32,13 +30,12 @@ import {
   createRentalRequestOnRentApi,
   fetchHandoverLocationsAsRentGuest,
   fetchHandoverLocationsFromRentApi,
-  fetchHandoverPricingQuoteAsRentGuest,
-  fetchHandoverPricingQuoteFromRentApi,
   fetchReservationExtraOptionsAsRentGuest,
   fetchReservationExtraOptionsFromRentApi,
   type CreateRentalRequestFormPayload,
   type ReservationExtraOptionTemplateDto,
 } from "@/lib/rentApi";
+import { buildRentalRequestPricingLines } from "@/lib/rentalRequestPricing";
 import { GuestReservationGate } from "@/components/auth/GuestReservationGate";
 import { fetchHasBffMemberSession } from "@/lib/bff-access-token";
 import { RENT_GUEST_PREFILL_EMAIL_QUERY, RENT_RESERVATION_GUEST_ACK_QUERY } from "@/lib/guestAuthClient";
@@ -50,6 +47,9 @@ import { RentIconBackButton, RentIconBackLink } from "@/components/ui/RentIconBa
 import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
 import { HERO_HALF_HOUR_SLOTS } from "@/components/ui/DayPickerPopover";
 import { RentSelect } from "@/components/ui/RentSelect";
+import { fetchFleetVehicleById } from "@/lib/rentFleetClient";
+import { parseSurchargeEur } from "@/lib/rentFleetCore";
+import { isLikelyUuidString } from "@/lib/uuidLike";
 
 const steps = [
   { id: 1, title: "Tarih seçimi", short: "Tarih" },
@@ -61,28 +61,6 @@ const steps = [
 /** Demo: farklı bırakış (örn. 35$) — alış/teslim ülkesi aynıyken uygulanan sabit TRY ek ücreti */
 const DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY = 1250;
 
-const ease = [0.22, 1, 0.36, 1] as const;
-
-const lgMediaQuery = "(min-width: 1024px)";
-
-function subscribeLgMedia(onChange: () => void) {
-  const mq = window.matchMedia(lgMediaQuery);
-  mq.addEventListener("change", onChange);
-  return () => mq.removeEventListener("change", onChange);
-}
-
-function getLgMediaSnapshot() {
-  return window.matchMedia(lgMediaQuery).matches;
-}
-
-function getLgMediaServerSnapshot() {
-  return false;
-}
-
-function useIsLgUp() {
-  return useSyncExternalStore(subscribeLgMedia, getLgMediaSnapshot, getLgMediaServerSnapshot);
-}
-
 function isEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
@@ -93,7 +71,6 @@ function isPhoneTr(s: string) {
 }
 
 const maxUploadBytes = 8 * 1024 * 1024;
-const uuidLikeRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isLikelyImageFile(f: File) {
   if (f.size > maxUploadBytes) return false;
@@ -135,7 +112,16 @@ function saveReservationRequestSnapshot(snapshot: {
   }
 }
 
-type ExtraFeeLineItem = { key: string; label: string; amountTry: number };
+type ExtraFeeLineItem = {
+  key: string;
+  label: string;
+  amountTry: number;
+  /** Seçili teslim `surchargeEur`; doluysa sağ sütunda TRY yerine bu EUR gösterilir */
+  displayEurSurcharge?: number;
+};
+
+/** Yalnızca seçili teslim satırı `surchargeEur` (başka alan / yedek yok) */
+type DifferentDropoffPricingMeta = { eur: number };
 
 function ExtraFeesPricingSection({
   formatPrice,
@@ -174,20 +160,15 @@ function ExtraFeesPricingSection({
 
 function DifferentDropoffPricingSection({
   formatPrice,
-  surchargeTry,
   lines,
 }: {
   formatPrice: (amountTry: number) => string;
-  surchargeTry: number;
   lines: ExtraFeeLineItem[];
 }) {
   if (lines.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <div className="flex justify-between gap-2 font-medium text-text">
-        <span>Farklı teslim noktası</span>
-        <span className="shrink-0 tabular-nums text-text">{formatPrice(surchargeTry)}</span>
-      </div>
+      <p className="font-medium text-text">Farklı teslim noktası</p>
       <ul className="ml-1.5 space-y-0.5 border-l-2 border-border-subtle/60 pl-2.5 text-[12px] leading-snug text-text-muted">
         {lines.map((row) => (
           <li key={row.key} className="flex justify-between gap-2">
@@ -197,11 +178,58 @@ function DifferentDropoffPricingSection({
               </span>
               {row.label}
             </span>
-            <span className="shrink-0 tabular-nums">{formatPrice(row.amountTry)}</span>
+            <span className="shrink-0 tabular-nums text-text">
+              {typeof row.displayEurSurcharge === "number" &&
+              Number.isFinite(row.displayEurSurcharge) &&
+              row.displayEurSurcharge > 0
+                ? formatEurSurchargeAmount(row.displayEurSurcharge)
+                : formatPrice(row.amountTry)}
+            </span>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function SummaryVehicleRentalPricingRows({
+  formatPrice,
+  nights,
+  pricePerDay,
+  abroadUsageFee,
+}: {
+  formatPrice: (amountTry: number) => string;
+  nights: number | null;
+  pricePerDay: number;
+  abroadUsageFee: number;
+}) {
+  const rentalOnly = nights != null ? computeRentalSubtotal(pricePerDay, nights) : 0;
+  return (
+    <>
+      <div className="text-text-muted">
+        <p className="font-medium text-text">Günlük Kiralama Bedeli</p>
+        {nights != null && nights > 0 ? (
+          <ul className="ml-1.5 mt-1 space-y-0.5 border-l-2 border-border-subtle/60 pl-2.5 text-[12px] leading-snug">
+            <li className="flex justify-between gap-2 tabular-nums">
+              <span className="min-w-0 text-text-muted">
+                <span className="text-text-muted/80" aria-hidden>
+                  -{" "}
+                </span>
+                {nights} gün × {formatPrice(pricePerDay)}
+              </span>
+              <span className="shrink-0 text-text">{formatPrice(rentalOnly)}</span>
+            </li>
+          </ul>
+        ) : (
+          <p className="mt-1 pl-3 text-xs leading-snug text-text-muted">— Tarih seçilince hesaplanır</p>
+        )}
+      </div>
+      {abroadUsageFee > 0 ? (
+        <div className="mt-1">
+          <Row label="Yurt dışı kullanım ek ücreti" value={formatPrice(abroadUsageFee)} />
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -211,9 +239,9 @@ function BookingRentalSummaryCard({
   pickup,
   ret,
   formatPrice,
-  vehicleBaseSubtotalTry,
-  differentDropoffSurchargeTry,
+  abroadUsageFee,
   differentDropoffDetailLines,
+  differentDropoffSelectedSurchargeEur,
   extraFeeTry,
   extraFeeLineItems,
   total,
@@ -228,9 +256,10 @@ function BookingRentalSummaryCard({
   pickup: string;
   ret: string;
   formatPrice: (amountTry: number) => string;
-  vehicleBaseSubtotalTry: number;
-  differentDropoffSurchargeTry: number;
+  abroadUsageFee: number;
   differentDropoffDetailLines: ExtraFeeLineItem[];
+  /** Seçilen teslim satırının EUR ek ücreti; teslim yeri satırında gösterilir */
+  differentDropoffSelectedSurchargeEur?: number | null;
   extraFeeTry: number;
   extraFeeLineItems: ExtraFeeLineItem[];
   total: number;
@@ -242,84 +271,263 @@ function BookingRentalSummaryCard({
   returnTime?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-bg-card/80 p-4 backdrop-blur-md">
-      <div className="relative aspect-video overflow-hidden rounded-lg border border-border-subtle">
-        <Image
-          src={vehicle.image}
-          alt={vehicle.imageAlt}
-          fill
-          className="object-cover"
-          sizes="320px"
-        />
-      </div>
-      <p className="mt-3 text-base font-semibold text-text">{vehicle.name}</p>
-      {nights != null && pickup && ret ? (
-        <>
-          <div className="mt-3 space-y-1.5 rounded-lg border border-border-subtle/70 bg-bg-raised/35 px-3 py-2.5 text-[12px] leading-snug text-text-muted dark:bg-bg-deep/25">
-            <p>
-              <span className="font-semibold text-text">Alış:</span> {formatTrDate(pickup)}
-              {pickupTime ? (
-                <>
-                  {" "}
-                  <span className="tabular-nums text-text-muted">· {pickupTime}</span>
-                </>
-              ) : null}
-            </p>
-            <p>
-              <span className="font-semibold text-text">Teslim:</span> {formatTrDate(ret)}
-              {returnTime ? (
-                <>
-                  {" "}
-                  <span className="tabular-nums text-text-muted">· {returnTime}</span>
-                </>
-              ) : null}
-            </p>
-            {differentDropoff ? (
-              <>
-                <p className="mt-2 border-t border-border-subtle/60 pt-2">
-                  <span className="font-semibold text-text">Alış yeri:</span> {pickupLocationLabel}
-                </p>
-                <p>
-                  <span className="font-semibold text-text">Teslim yeri:</span> {returnLocationLabel}
-                </p>
-              </>
-            ) : null}
-          </div>
-          <p className="mt-2 text-xs text-text-muted">
-            Günlük {formatPrice(vehicle.pricePerDay)}{" "}
-            <span className="text-text-muted/80" aria-hidden>
-              ×
-            </span>{" "}
-            <span className="font-medium tabular-nums text-text">{nights} gün</span>
-          </p>
-        </>
-      ) : (
-        <p className="text-xs text-text-muted">— · günlük {formatPrice(vehicle.pricePerDay)}</p>
-      )}
-      <div className="mt-4 space-y-1 border-t border-border-subtle pt-4 text-sm">
-        <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
-        {differentDropoff && differentDropoffDetailLines.length > 0 ? (
-          <DifferentDropoffPricingSection
-            formatPrice={formatPrice}
-            surchargeTry={differentDropoffSurchargeTry}
-            lines={differentDropoffDetailLines}
+    <div className="space-y-5">
+      <div className="flex gap-3 rounded-2xl bg-gradient-to-br from-bg-card to-bg-raised/80 p-3 ring-1 ring-border-subtle/70">
+        <div className="relative h-[4.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-bg-raised shadow-inner ring-1 ring-border-subtle/40">
+          <Image
+            src={vehicle.image}
+            alt={vehicle.imageAlt}
+            fill
+            className="object-cover"
+            sizes="96px"
           />
-        ) : null}
-        <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
-        <div className="flex justify-between border-t border-border-subtle pt-2 font-semibold text-text">
-          <span>Toplam tutar</span>
-          <span>{formatPrice(total)}</span>
+        </div>
+        <div className="min-w-0 flex-1 py-0.5">
+          <p className="text-[15px] font-bold leading-snug tracking-tight text-text">{vehicle.name}</p>
+          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wider text-text-muted">Günlük</p>
+          <p className="tabular-nums text-lg font-bold leading-none text-accent">
+            {formatPrice(vehicle.pricePerDay)}
+            <span className="text-xs font-semibold text-text-muted"> / gün</span>
+          </p>
         </div>
       </div>
+
+      {nights != null && pickup && ret ? (
+        <section className="rounded-2xl bg-bg-card/50 px-3.5 py-3 ring-1 ring-border-subtle/50">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Plan</p>
+          <div className="mt-2.5 space-y-2 text-[13px] leading-snug text-text-muted">
+            <div className="flex gap-2">
+              <span className="w-14 shrink-0 text-[11px] font-semibold uppercase text-text-muted/90">Alış</span>
+              <span className="min-w-0 text-text">
+                {formatTrDate(pickup)}
+                {pickupTime ? (
+                  <span className="ml-1.5 tabular-nums text-text-muted">· {pickupTime}</span>
+                ) : null}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <span className="w-14 shrink-0 text-[11px] font-semibold uppercase text-text-muted/90">Teslim</span>
+              <span className="min-w-0 text-text">
+                {formatTrDate(ret)}
+                {returnTime ? (
+                  <span className="ml-1.5 tabular-nums text-text-muted">· {returnTime}</span>
+                ) : null}
+              </span>
+            </div>
+            {differentDropoff ? (
+              <div className="border-t border-border-subtle/60 pt-2.5 text-[12px]">
+                <p>
+                  <span className="font-semibold text-text">Alış yeri</span>
+                  <span className="mt-0.5 block text-text-muted">{pickupLocationLabel}</span>
+                </p>
+                <p className="mt-2">
+                  <span className="font-semibold text-text">Teslim yeri</span>
+                  <span className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-text-muted">
+                    <span>{returnLocationLabel}</span>
+                    {differentDropoffSelectedSurchargeEur != null &&
+                    Number.isFinite(differentDropoffSelectedSurchargeEur) &&
+                    differentDropoffSelectedSurchargeEur > 0 ? (
+                      <span className="tabular-nums font-semibold text-accent">
+                        {formatSurchargeEurSuffix(differentDropoffSelectedSurchargeEur)}
+                      </span>
+                    ) : null}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : (
+        <p className="rounded-xl bg-bg-card/40 px-3 py-2.5 text-xs text-text-muted ring-1 ring-border-subtle/40">
+          Tarih aralığını seçtiğinizde plan özeti burada görünür.
+        </p>
+      )}
+
+      <section className="rounded-2xl bg-bg-card/40 px-3.5 py-3 ring-1 ring-border-subtle/50">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Ücret</p>
+        <div className="mt-2 space-y-1 text-sm">
+          <SummaryVehicleRentalPricingRows
+            formatPrice={formatPrice}
+            nights={nights}
+            pricePerDay={vehicle.pricePerDay}
+            abroadUsageFee={abroadUsageFee}
+          />
+          {differentDropoff && differentDropoffDetailLines.length > 0 ? (
+            <DifferentDropoffPricingSection formatPrice={formatPrice} lines={differentDropoffDetailLines} />
+          ) : null}
+          <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
+        </div>
+        <div className="mt-4 flex items-end justify-between gap-3 border-t border-border-subtle/70 pt-3">
+          <span className="text-sm font-bold text-text">Toplam</span>
+          <span className="text-xl font-bold tabular-nums tracking-tight text-accent">{formatPrice(total)}</span>
+        </div>
+      </section>
     </div>
   );
 }
 
-export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
+type VehicleHandoverSelectOpt = {
+  value: string;
+  label: string;
+  right?: string;
+  /** Dashboard / handover kaydı EUR ek ücreti; farklı teslim toplamı buna göre hesaplanır */
+  surchargeEur?: number;
+};
+
+function mapHandoverPickupRows(rows: unknown[]): VehicleHandoverSelectOpt[] {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => {
+      if (row == null || typeof row !== "object") return false;
+      return (row as { active?: boolean }).active !== false;
+    })
+    .map((row) => {
+      const o = row as Record<string, unknown>;
+      return { value: String(o.id ?? ""), label: String(o.name ?? "") };
+    })
+    .filter((x) => x.value.length > 0);
+}
+
+/** Katalog / seçicide `+12 €` gibi etiketler */
+function formatSurchargeEurSuffix(eur: number): string {
+  if (!Number.isFinite(eur) || eur <= 0) return "";
+  const r = Math.round(eur * 100) / 100;
+  const s = Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/, "");
+  return `+${s} €`;
+}
+
+/** Liste / özet: panel `surchargeEur` (€ işareti, + yok) */
+function formatEurSurchargeAmount(eur: number): string {
+  if (!Number.isFinite(eur) || eur <= 0) return "";
+  const r = Math.round(eur * 100) / 100;
+  const s = Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/\.?0+$/, "");
+  return `${s} €`;
+}
+
+function mapHandoverReturnRows(rows: unknown[]): VehicleHandoverSelectOpt[] {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => {
+      if (row == null || typeof row !== "object") return false;
+      return (row as { active?: boolean }).active !== false;
+    })
+    .map((row) => {
+      const o = row as Record<string, unknown>;
+      const parsed = parseSurchargeEur(o);
+      const eur = parsed != null && parsed > 0 ? parsed : undefined;
+      const right = eur != null ? formatSurchargeEurSuffix(eur) : undefined;
+      return {
+        value: String(o.id ?? ""),
+        label: String(o.name ?? ""),
+        right,
+        surchargeEur: eur,
+      };
+    })
+    .filter((x) => x.value.length > 0);
+}
+
+/** Araç kaydından alış seçenekleri; `null` ise global PICKUP kataloğu gerekir */
+function pickupOptionsFromVehicle(vehicle: FleetVehicle): VehicleHandoverSelectOpt[] | null {
+  const ph = vehicle.pickupHandoverForBooking;
+  if (ph?.id) {
+    const eur = ph.surchargeEur;
+    return [
+      {
+        value: ph.id,
+        label: ph.name || ph.id,
+        right: typeof eur === "number" && eur > 0 ? formatSurchargeEurSuffix(eur) : undefined,
+        surchargeEur: typeof eur === "number" && eur > 0 ? eur : undefined,
+      },
+    ];
+  }
+  const id = vehicle.defaultPickupHandoverLocationId?.trim() ?? "";
+  if (isLikelyUuidString(id)) {
+    return [
+      {
+        value: id,
+        label:
+          vehicle.defaultPickupHandoverName?.trim() ||
+          vehicle.pickupLocationLabel?.trim() ||
+          id,
+        right: undefined,
+      },
+    ];
+  }
+  return null;
+}
+
+/** Araç kaydından teslim seçenekleri; `null` ise global RETURN kataloğu gerekir */
+function returnOptionsFromVehicle(vehicle: FleetVehicle): VehicleHandoverSelectOpt[] | null {
+  const rh = vehicle.returnHandoversForBooking;
+  if (rh && rh.length > 0) {
+    return rh.map((h) => {
+      const eur = h.surchargeEur;
+      const n = typeof eur === "number" && Number.isFinite(eur) && eur > 0 ? eur : undefined;
+      return {
+        value: h.id,
+        label: h.name || h.id,
+        right: n != null ? formatSurchargeEurSuffix(n) : undefined,
+        surchargeEur: n,
+      };
+    });
+  }
+  const ph = vehicle.pickupHandoverForBooking;
+  const fallbackReturnId =
+    vehicle.defaultReturnHandoverLocationId?.trim() || vehicle.defaultPickupHandoverLocationId?.trim() || "";
+  if (fallbackReturnId && isLikelyUuidString(fallbackReturnId)) {
+    return [
+      {
+        value: fallbackReturnId,
+        label:
+          vehicle.defaultReturnHandoverName?.trim() ||
+          vehicle.defaultPickupHandoverName?.trim() ||
+          vehicle.pickupLocationLabel?.trim() ||
+          ph?.name ||
+          fallbackReturnId,
+        right: undefined,
+      },
+    ];
+  }
+  if (fallbackReturnId) {
+    return [
+      {
+        value: fallbackReturnId,
+        label:
+          vehicle.defaultReturnHandoverName?.trim() ||
+          vehicle.defaultPickupHandoverName?.trim() ||
+          ph?.name ||
+          fallbackReturnId,
+        right: undefined,
+      },
+    ];
+  }
+  return null;
+}
+
+export function BookingWizard({ vehicle: ssrVehicle }: { vehicle: FleetVehicle }) {
   const { formatPrice } = useI18n();
+  const [vehicle, setVehicle] = useState(ssrVehicle);
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    setVehicle(ssrVehicle);
+  }, [ssrVehicle.id]);
+
+  useEffect(() => {
+    if (!isLikelyUuidString(ssrVehicle.id)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const v = await fetchFleetVehicleById(ssrVehicle.id);
+        if (!cancelled && v) setVehicle(v);
+      } catch {
+        /* sunucu props */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ssrVehicle.id]);
   /**
    * Üye değilken misafir JWT olsa bile kapıyı atlamıyoruz (`gate`).
    * Üye oturumu veya araç sayfasından `guestAck=1` + Bearer ile `ready`.
@@ -393,20 +601,12 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   }, [pathname, router, sp]);
 
-  const fromApiVehicle = uuidLikeRe.test(vehicle.id);
+  const fromApiVehicle = isLikelyUuidString(vehicle.id);
   const defaultHandoverPickup = vehicle.defaultPickupHandoverLocationId ?? "";
   const defaultHandoverReturn = vehicle.defaultReturnHandoverLocationId ?? "";
 
-  const [apiPickupOptions, setApiPickupOptions] = useState<{ value: string; label: string; right?: string }[]>([]);
-  const [apiReturnOptions, setApiReturnOptions] = useState<{ value: string; label: string; right?: string }[]>([]);
-  type HandoverQuote = {
-    pickupLegEur: number;
-    returnLegEur: number;
-    routeEur: number;
-    totalEur: number;
-    applied: boolean;
-  };
-  const [handoverQuote, setHandoverQuote] = useState<HandoverQuote | null>(null);
+  const [apiPickupOptions, setApiPickupOptions] = useState<VehicleHandoverSelectOpt[]>([]);
+  const [apiReturnOptions, setApiReturnOptions] = useState<VehicleHandoverSelectOpt[]>([]);
 
   useEffect(() => {
     if (!fromApiVehicle) {
@@ -416,90 +616,127 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     }
     if (reserveAuthPhase !== "ready") return;
     let cancelled = false;
+
+    const vPickup = pickupOptionsFromVehicle(vehicle);
+    const vReturn = returnOptionsFromVehicle(vehicle);
+    const needPickupApi = vPickup === null;
+    const needReturnApi = vReturn === null;
+
+    if (!needPickupApi && !needReturnApi) {
+      setApiPickupOptions(vPickup);
+      setApiReturnOptions(vReturn);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void (async () => {
       try {
         const member = await fetchHasBffMemberSession();
-        const [p, r] = await Promise.all([
-          member ? fetchHandoverLocationsFromRentApi("PICKUP") : fetchHandoverLocationsAsRentGuest("PICKUP"),
-          member ? fetchHandoverLocationsFromRentApi("RETURN") : fetchHandoverLocationsAsRentGuest("RETURN"),
-        ]);
+        const p = needPickupApi
+          ? await (member ? fetchHandoverLocationsFromRentApi("PICKUP") : fetchHandoverLocationsAsRentGuest("PICKUP"))
+          : [];
+        const r = needReturnApi
+          ? await (member ? fetchHandoverLocationsFromRentApi("RETURN") : fetchHandoverLocationsAsRentGuest("RETURN"))
+          : [];
         if (cancelled) return;
-        const mapPickupRows = (rows: unknown[]) =>
-          (Array.isArray(rows) ? rows : [])
-            .filter((row) => {
-              if (row == null || typeof row !== "object") return false;
-              return (row as { active?: boolean }).active !== false;
-            })
-            .map((row) => {
-              const o = row as Record<string, unknown>;
-              return {
-                value: String(o.id ?? ""),
-                label: String(o.name ?? ""),
-              };
-            })
-            .filter((x) => x.value.length > 0);
-        const mapReturnRows = (rows: unknown[]) =>
-          (Array.isArray(rows) ? rows : [])
-            .filter((row) => {
-              if (row == null || typeof row !== "object") return false;
-              return (row as { active?: boolean }).active !== false;
-            })
-            .map((row) => {
-              const o = row as Record<string, unknown>;
-              const sur = o.surchargeEur;
-              const surNum =
-                typeof sur === "number" && Number.isFinite(sur)
-                  ? sur
-                  : typeof sur === "string"
-                    ? Number(sur)
-                    : NaN;
-              const eur =
-                typeof surNum === "number" && Number.isFinite(surNum) && surNum >= 0 ? surNum : 0;
-              const right = eur > 0 ? `+${eur} €` : undefined;
-              return {
-                value: String(o.id ?? ""),
-                label: String(o.name ?? ""),
-                right,
-              };
-            })
-            .filter((x) => x.value.length > 0);
-        const pickupRows = mapPickupRows(p as unknown[]);
-        const returnRows = mapReturnRows(r as unknown[]);
 
-        type HandoverSelectOpt = { value: string; label: string; right?: string };
-        let pickupOpts: HandoverSelectOpt[] = pickupRows;
-        let returnOpts: HandoverSelectOpt[] = returnRows;
+        const pickupRows = needPickupApi ? mapHandoverPickupRows(p as unknown[]) : [];
+        const returnRows = needReturnApi ? mapHandoverReturnRows(r as unknown[]) : [];
 
-        const ph = vehicle.pickupHandoverForBooking;
-        if (ph?.id) {
-          const eur = ph.surchargeEur;
-          pickupOpts = [
-            {
-              value: ph.id,
-              label: ph.name || ph.id,
-              right: typeof eur === "number" && eur > 0 ? `+${eur} €` : undefined,
-            },
-          ];
+        let pickupOpts: VehicleHandoverSelectOpt[] = needPickupApi ? pickupRows : vPickup!;
+        let returnOpts: VehicleHandoverSelectOpt[] = needReturnApi ? returnRows : vReturn!;
+
+        if (needPickupApi) {
+          const ph = vehicle.pickupHandoverForBooking;
+          if (ph?.id) {
+            const eur = ph.surchargeEur;
+            pickupOpts = [
+              {
+                value: ph.id,
+                label: ph.name || ph.id,
+                right: typeof eur === "number" && eur > 0 ? formatSurchargeEurSuffix(eur) : undefined,
+                surchargeEur: typeof eur === "number" && eur > 0 ? eur : undefined,
+              },
+            ];
+          } else {
+            const def = vehicle.defaultPickupHandoverLocationId?.trim() ?? "";
+            if (isLikelyUuidString(def)) {
+              const hit = pickupRows.find((o) => o.value === def);
+              pickupOpts = hit
+                ? [hit]
+                : [
+                    {
+                      value: def,
+                      label:
+                        vehicle.defaultPickupHandoverName?.trim() ||
+                        vehicle.pickupLocationLabel?.trim() ||
+                        def,
+                      right: undefined,
+                    },
+                  ];
+            }
+          }
         }
 
-        const rh = vehicle.returnHandoversForBooking;
-        if (rh && rh.length > 0) {
-          const byId = new Map(returnRows.map((o) => [o.value, o]));
-          returnOpts = rh.map((h) => {
-            const merged = byId.get(h.id);
-            const eur = h.surchargeEur;
-            const rightFromHandover =
-              typeof eur === "number" && eur > 0 ? `+${eur} €` : merged?.right;
-            return {
-              value: h.id,
-              label: h.name || h.id,
-              right: rightFromHandover,
-            };
-          });
+        if (needReturnApi) {
+          const rh = vehicle.returnHandoversForBooking;
+          if (rh && rh.length > 0) {
+            const byId = new Map(returnRows.map((o) => [o.value, o]));
+            returnOpts = rh.map((h) => {
+              const merged = byId.get(h.id);
+              const fromVehicle =
+                typeof h.surchargeEur === "number" && Number.isFinite(h.surchargeEur) && h.surchargeEur > 0
+                  ? h.surchargeEur
+                  : undefined;
+              const catalogSur =
+                merged &&
+                typeof merged.surchargeEur === "number" &&
+                Number.isFinite(merged.surchargeEur) &&
+                merged.surchargeEur > 0
+                  ? merged.surchargeEur
+                  : undefined;
+              /** Araç kaydında yoksa RETURN kataloğundaki tutar (seçicideki +€ ile özet/toplam aynı olsun) */
+              const sur = fromVehicle ?? catalogSur;
+              return {
+                value: h.id,
+                label: h.name || h.id,
+                right: sur != null ? formatSurchargeEurSuffix(sur) : merged?.right,
+                surchargeEur: sur,
+              };
+            });
+          } else {
+            const ph = vehicle.pickupHandoverForBooking;
+            const fallbackReturnId =
+              vehicle.defaultReturnHandoverLocationId?.trim() ||
+              vehicle.defaultPickupHandoverLocationId?.trim() ||
+              pickupOpts[0]?.value ||
+              "";
+            if (fallbackReturnId) {
+              const fromCatalog = returnRows.find((o) => o.value === fallbackReturnId);
+              returnOpts = fromCatalog
+                ? [fromCatalog]
+                : [
+                    {
+                      value: fallbackReturnId,
+                      label:
+                        vehicle.defaultReturnHandoverName?.trim() ||
+                        vehicle.defaultPickupHandoverName?.trim() ||
+                        ph?.name ||
+                        fallbackReturnId,
+                      right: undefined,
+                    },
+                  ];
+            } else {
+              returnOpts = [];
+            }
+          }
         }
 
-        setApiPickupOptions(pickupOpts);
-        setApiReturnOptions(returnOpts);
+        if (!cancelled) {
+          setApiPickupOptions(pickupOpts);
+          setApiReturnOptions(returnOpts);
+        }
       } catch {
         if (!cancelled) {
           setApiPickupOptions([]);
@@ -507,70 +744,117 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [fromApiVehicle, reserveAuthPhase, vehicle.pickupHandoverForBooking, vehicle.returnHandoversForBooking]);
+  }, [
+    fromApiVehicle,
+    reserveAuthPhase,
+    vehicle.pickupHandoverForBooking,
+    vehicle.returnHandoversForBooking,
+    vehicle.defaultPickupHandoverLocationId,
+    vehicle.defaultReturnHandoverLocationId,
+    vehicle.defaultPickupHandoverName,
+    vehicle.defaultReturnHandoverName,
+    vehicle.pickupLocationLabel,
+  ]);
 
-  const firstPickupHandoverId = useMemo(
-    () => apiPickupOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "",
-    [apiPickupOptions],
+  const vehiclePickupOpts = useMemo(
+    () => pickupOptionsFromVehicle(vehicle) ?? [],
+    [
+      vehicle.pickupHandoverForBooking,
+      vehicle.defaultPickupHandoverLocationId,
+      vehicle.defaultPickupHandoverName,
+      vehicle.pickupLocationLabel,
+    ],
   );
-  const firstReturnHandoverId = useMemo(
-    () => apiReturnOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "",
-    [apiReturnOptions],
+  const vehicleReturnOpts = useMemo(
+    () => returnOptionsFromVehicle(vehicle) ?? [],
+    [
+      vehicle.returnHandoversForBooking,
+      vehicle.defaultReturnHandoverLocationId,
+      vehicle.defaultPickupHandoverLocationId,
+      vehicle.defaultReturnHandoverName,
+      vehicle.defaultPickupHandoverName,
+      vehicle.pickupLocationLabel,
+      vehicle.pickupHandoverForBooking,
+    ],
   );
+
+  const firstPickupHandoverId = useMemo(() => {
+    const list = fromApiVehicle && apiPickupOptions.length > 0 ? apiPickupOptions : vehiclePickupOpts;
+    return list.find((o) => isLikelyUuidString(o.value))?.value ?? "";
+  }, [fromApiVehicle, apiPickupOptions, vehiclePickupOpts]);
+
+  const firstReturnHandoverId = useMemo(() => {
+    const list = fromApiVehicle && apiReturnOptions.length > 0 ? apiReturnOptions : vehicleReturnOpts;
+    return list.find((o) => isLikelyUuidString(o.value))?.value ?? "";
+  }, [fromApiVehicle, apiReturnOptions, vehicleReturnOpts]);
 
   const rawLokasyon = (sp.get("lokasyon") ?? "").trim();
   const rawLokasyonTeslim = (sp.get("lokasyonTeslim") ?? "").trim();
 
+  const firstVehiclePickupValue =
+    vehiclePickupOpts.find((o) => isLikelyUuidString(o.value))?.value ?? vehiclePickupOpts[0]?.value ?? "";
+
   /** API aracı: URL’deki demo `lokasyon` slug’ı handover UUID değil; önce gerçek UUID (araç varsayılanı / API listesi). */
   const locId = fromApiVehicle
-    ? uuidLikeRe.test(rawLokasyon)
+    ? isLikelyUuidString(rawLokasyon)
       ? rawLokasyon
-      : uuidLikeRe.test(defaultHandoverPickup)
+      : isLikelyUuidString(defaultHandoverPickup)
         ? defaultHandoverPickup
         : firstPickupHandoverId
-    : rawLokasyon || defaultHandoverPickup || pickupLocations[0]!.id;
+    : rawLokasyon || defaultHandoverPickup || firstVehiclePickupValue;
 
   const returnLocId = fromApiVehicle
-    ? uuidLikeRe.test(rawLokasyonTeslim)
+    ? isLikelyUuidString(rawLokasyonTeslim)
       ? rawLokasyonTeslim
-      : uuidLikeRe.test(defaultHandoverReturn)
+      : isLikelyUuidString(defaultHandoverReturn)
         ? defaultHandoverReturn
-        : uuidLikeRe.test(defaultHandoverPickup)
+        : isLikelyUuidString(defaultHandoverPickup)
           ? defaultHandoverPickup
           : locId || firstReturnHandoverId || firstPickupHandoverId
-    : rawLokasyonTeslim || (defaultHandoverReturn || defaultHandoverPickup || locId || pickupLocations[0]!.id);
+    : rawLokasyonTeslim ||
+      (defaultHandoverReturn ||
+        defaultHandoverPickup ||
+        locId ||
+        vehicleReturnOpts.find((o) => isLikelyUuidString(o.value))?.value ||
+        vehicleReturnOpts[0]?.value ||
+        "");
 
   useEffect(() => {
     if (!fromApiVehicle) return;
-    const badPickup = rawLokasyon.length > 0 && !uuidLikeRe.test(rawLokasyon);
-    const badReturn = rawLokasyonTeslim.length > 0 && !uuidLikeRe.test(rawLokasyonTeslim);
+    const badPickup = rawLokasyon.length > 0 && !isLikelyUuidString(rawLokasyon);
+    const badReturn = rawLokasyonTeslim.length > 0 && !isLikelyUuidString(rawLokasyonTeslim);
     if (!badPickup && !badReturn) return;
-    if (!uuidLikeRe.test(locId)) return;
+    if (!isLikelyUuidString(locId)) return;
     patchQuery((q) => {
       if (badPickup) q.set("lokasyon", locId);
-      if (badReturn && uuidLikeRe.test(returnLocId)) q.set("lokasyonTeslim", returnLocId);
+      if (badReturn && isLikelyUuidString(returnLocId)) q.set("lokasyonTeslim", returnLocId);
     });
   }, [fromApiVehicle, rawLokasyon, rawLokasyonTeslim, locId, returnLocId]);
 
   const handoverLabel = useCallback(
     (id: string) => {
-      const hit = [...apiPickupOptions, ...apiReturnOptions].find((o) => o.value === id);
+      const hit = [...apiPickupOptions, ...apiReturnOptions, ...vehiclePickupOpts, ...vehicleReturnOpts].find(
+        (o) => o.value === id,
+      );
       return hit?.label ?? id;
     },
-    [apiPickupOptions, apiReturnOptions],
+    [apiPickupOptions, apiReturnOptions, vehiclePickupOpts, vehicleReturnOpts],
   );
 
   const pickupLocation =
-    fromApiVehicle && uuidLikeRe.test(locId)
+    fromApiVehicle && isLikelyUuidString(locId)
       ? { label: handoverLabel(locId), countryCode: "" }
-      : getLocationById(locId);
+      : getLocationById(locId) ?? { label: handoverLabel(locId), countryCode: "" };
   const returnLocation =
-    fromApiVehicle && uuidLikeRe.test(returnLocId)
+    fromApiVehicle && isLikelyUuidString(returnLocId)
       ? { label: handoverLabel(returnLocId), countryCode: "" }
-      : getLocationById(returnLocId);
+      : getLocationById(returnLocId) ?? { label: handoverLabel(returnLocId), countryCode: "" };
+  const pickupSummaryLabel = pickupLocation?.label?.trim() || locId;
+  const returnSummaryLabel = returnLocation?.label?.trim() || returnLocId;
   const crossBorderFee = crossBorderOneWaySurcharge(
     pickupLocation?.countryCode ?? "",
     returnLocation?.countryCode ?? "",
@@ -597,13 +881,13 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
 
   const pickupLocationSelectOptions = useMemo(() => {
     if (fromApiVehicle && apiPickupOptions.length > 0) return apiPickupOptions;
-    return pickupLocations.map((l) => ({ value: l.id, label: l.label, right: l.countryCode }));
-  }, [fromApiVehicle, apiPickupOptions]);
+    return vehiclePickupOpts;
+  }, [fromApiVehicle, apiPickupOptions, vehiclePickupOpts]);
 
   const returnLocationSelectOptions = useMemo(() => {
     if (fromApiVehicle && apiReturnOptions.length > 0) return apiReturnOptions;
-    return pickupLocationSelectOptions;
-  }, [fromApiVehicle, apiReturnOptions, pickupLocationSelectOptions]);
+    return vehicleReturnOpts;
+  }, [fromApiVehicle, apiReturnOptions, vehicleReturnOpts]);
 
   const canChooseDifferentReturn = useMemo(
     () => returnLocationSelectOptions.length > 0 && returnLocationSelectOptions.some((o) => o.value !== locId),
@@ -620,14 +904,14 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     const returnAllowed = new Set(returnLocationSelectOptions.map((o) => o.value));
 
     const fallbackPickup =
-      pickupLocationSelectOptions.find((o) => uuidLikeRe.test(o.value))?.value ?? "";
+      pickupLocationSelectOptions.find((o) => isLikelyUuidString(o.value))?.value ?? "";
     const fallbackReturn =
-      returnLocationSelectOptions.find((o) => o.value !== fallbackPickup && uuidLikeRe.test(o.value))?.value ??
-      returnLocationSelectOptions.find((o) => uuidLikeRe.test(o.value))?.value ??
+      returnLocationSelectOptions.find((o) => o.value !== fallbackPickup && isLikelyUuidString(o.value))?.value ??
+      returnLocationSelectOptions.find((o) => isLikelyUuidString(o.value))?.value ??
       "";
 
-    const pBad = uuidLikeRe.test(rawLokasyon) && !pickupAllowed.has(rawLokasyon);
-    const rBad = uuidLikeRe.test(rawLokasyonTeslim) && !returnAllowed.has(rawLokasyonTeslim);
+    const pBad = isLikelyUuidString(rawLokasyon) && !pickupAllowed.has(rawLokasyon);
+    const rBad = isLikelyUuidString(rawLokasyonTeslim) && !returnAllowed.has(rawLokasyonTeslim);
     if (!pBad && !rBad) return;
 
     patchQuery((q) => {
@@ -643,109 +927,53 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     patchQuery,
   ]);
 
-  useEffect(() => {
-    if (!fromApiVehicle || reserveAuthPhase !== "ready") {
-      setHandoverQuote(null);
-      return;
-    }
-    if (!differentDropoff || !uuidLikeRe.test(locId) || !uuidLikeRe.test(returnLocId)) {
-      setHandoverQuote(null);
-      return;
-    }
-    let cancelled = false;
-    setHandoverQuote(null);
-    void (async () => {
-      const num = (u: unknown) => {
-        if (typeof u === "number" && Number.isFinite(u)) return u;
-        if (typeof u === "string") {
-          const x = Number(u);
-          return Number.isFinite(x) ? x : 0;
-        }
-        return 0;
-      };
-      try {
-        const member = await fetchHasBffMemberSession();
-        const raw = member
-          ? await fetchHandoverPricingQuoteFromRentApi(locId, returnLocId)
-          : await fetchHandoverPricingQuoteAsRentGuest(locId, returnLocId);
-        const ru = raw as Record<string, unknown>;
-        const q: HandoverQuote = {
-          pickupLegEur: num(ru.pickupLegEur),
-          returnLegEur: num(ru.returnLegEur),
-          routeEur: num(ru.routeEur),
-          totalEur: num(ru.totalEur),
-          applied: Boolean(ru.applied),
-        };
-        if (!cancelled) setHandoverQuote(q);
-      } catch {
-        if (!cancelled) setHandoverQuote(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fromApiVehicle, reserveAuthPhase, differentDropoff, locId, returnLocId]);
+  /** Yalnızca seçili teslim satırının `surchargeEur`; alan yoksa veya ≤0 ise ek ücret yok */
+  const differentDropoffPricingMeta = useMemo((): DifferentDropoffPricingMeta | null => {
+    if (!fromApiVehicle || !differentDropoff) return null;
+    const hit = returnLocationSelectOptions.find((o) => o.value === returnLocId);
+    const s = hit?.surchargeEur;
+    if (typeof s !== "number" || !Number.isFinite(s) || s <= 0) return null;
+    return { eur: s };
+  }, [fromApiVehicle, differentDropoff, returnLocId, returnLocationSelectOptions]);
 
-  const handoverSurchargeLines = useMemo(() => {
-    if (!fromApiVehicle || !differentDropoff || !handoverQuote) return [];
-    const lines: { key: string; label: string; amountTry: number }[] = [];
-    if (handoverQuote.pickupLegEur > 0) {
-      const amountTry = eurToTry(handoverQuote.pickupLegEur);
-      if (amountTry > 0) lines.push({ key: "ho-pu", label: "Alış noktası ek ücreti", amountTry });
-    }
-    if (handoverQuote.returnLegEur > 0) {
-      const amountTry = eurToTry(handoverQuote.returnLegEur);
-      if (amountTry > 0) lines.push({ key: "ho-re", label: "Teslim noktası ek ücreti", amountTry });
-    }
-    if (handoverQuote.routeEur > 0) {
-      const amountTry = eurToTry(handoverQuote.routeEur);
-      if (amountTry > 0) lines.push({ key: "ho-rt", label: "Güzergâh (ülke / bölge geçişi)", amountTry });
-    }
-    return lines;
-  }, [fromApiVehicle, differentDropoff, handoverQuote]);
+  const selectedReturnHandoverSurchargeEur = differentDropoffPricingMeta?.eur ?? null;
 
   const differentDropoffSurchargeTry = useMemo(() => {
     if (!differentDropoff) return 0;
     if (fromApiVehicle) {
-      if (!handoverQuote) return 0;
-      return eurToTry(handoverQuote.totalEur);
+      if (selectedReturnHandoverSurchargeEur == null) return 0;
+      return eurToTry(selectedReturnHandoverSurchargeEur);
     }
     return crossBorderFee > 0 ? crossBorderFee : DIFFERENT_DROPOFF_DEMO_SURCHARGE_TRY;
-  }, [differentDropoff, fromApiVehicle, handoverQuote, crossBorderFee]);
-
-  const pickupSummaryLabel = pickupLocation?.label?.trim() || locId;
-  const returnSummaryLabel = returnLocation?.label?.trim() || returnLocId;
+  }, [differentDropoff, fromApiVehicle, selectedReturnHandoverSurchargeEur, crossBorderFee]);
 
   const differentDropoffDetailLines = useMemo((): ExtraFeeLineItem[] => {
     if (!differentDropoff) return [];
     const loc = returnSummaryLabel.trim();
     if (!loc) return [];
     if (fromApiVehicle) {
-      if (!handoverQuote) return [];
-      const out: ExtraFeeLineItem[] = [
-        { key: "dd-ret", label: loc, amountTry: eurToTry(handoverQuote.returnLegEur) },
+      if (selectedReturnHandoverSurchargeEur == null) return [];
+      const eur = selectedReturnHandoverSurchargeEur;
+      return [
+        {
+          key: "dd-ret",
+          label: loc,
+          amountTry: eurToTry(eur),
+          displayEurSurcharge: eur,
+        },
       ];
-      if (handoverQuote.pickupLegEur > 0) {
-        out.push({
-          key: "dd-pu",
-          label: "Alış noktası ek ücreti",
-          amountTry: eurToTry(handoverQuote.pickupLegEur),
-        });
-      }
-      if (handoverQuote.routeEur > 0) {
-        out.push({
-          key: "dd-rt",
-          label: "Güzergâh (ülke / bölge geçişi)",
-          amountTry: eurToTry(handoverQuote.routeEur),
-        });
-      }
-      return out;
     }
     if (differentDropoffSurchargeTry > 0) {
       return [{ key: "dd-demo", label: loc, amountTry: differentDropoffSurchargeTry }];
     }
     return [];
-  }, [differentDropoff, returnSummaryLabel, fromApiVehicle, handoverQuote, differentDropoffSurchargeTry]);
+  }, [
+    differentDropoff,
+    returnSummaryLabel,
+    fromApiVehicle,
+    selectedReturnHandoverSurchargeEur,
+    differentDropoffSurchargeTry,
+  ]);
 
   const [step, setStep] = useState(1);
   /** Ulaşılan en ileri adım; geri gidildikten sonra üst sekmeden tekrar seçilebilmesi için. */
@@ -816,86 +1044,40 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
     }
   };
 
-  const isLgUp = useIsLgUp();
-  const mobileSummaryMode = !isLgUp;
-  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
-  const mobileStripRef = useRef<HTMLDivElement>(null);
-  const [mobileStripHeight, setMobileStripHeight] = useState(96);
-  /** Footer görününce şeridin `bottom` değeri (px); 0 = ekran altına yapışık. */
-  const [mobileStripDockBottomPx, setMobileStripDockBottomPx] = useState(0);
+  const [rentalSummaryOpen, setRentalSummaryOpen] = useState(false);
   const prevWizardStepRef = useRef(step);
 
   useEffect(() => {
-    if (!mobileSummaryMode) return;
     const prev = prevWizardStepRef.current;
     prevWizardStepRef.current = step;
     if (step === 4) {
-      setMobileSummaryOpen(true);
+      setRentalSummaryOpen(true);
       return;
     }
-    if (prev === 4 && step !== 4) setMobileSummaryOpen(false);
-  }, [mobileSummaryMode, step]);
+    if (prev === 4 && step !== 4) setRentalSummaryOpen(false);
+  }, [step]);
 
   useEffect(() => {
-    if (!mobileSummaryMode || !mobileSummaryOpen) return;
+    if (!rentalSummaryOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [mobileSummaryMode, mobileSummaryOpen]);
+  }, [rentalSummaryOpen]);
 
   useEffect(() => {
-    if (mobileSummaryMode && step === 4 && errors.terms) setMobileSummaryOpen(true);
-  }, [mobileSummaryMode, step, errors.terms]);
+    if (step === 4 && errors.terms) setRentalSummaryOpen(true);
+  }, [step, errors.terms]);
 
   useEffect(() => {
-    if (!mobileSummaryMode) {
-      setMobileStripDockBottomPx(0);
-      return;
-    }
-    let raf = 0;
-    const updateDock = () => {
-      const footer = document.getElementById("iletisim");
-      if (!footer) {
-        setMobileStripDockBottomPx(0);
-        return;
-      }
-      const rect = footer.getBoundingClientRect();
-      const vh = window.visualViewport?.height ?? window.innerHeight;
-      const px = Math.max(0, Math.round(vh - rect.top));
-      setMobileStripDockBottomPx(px);
+    if (!rentalSummaryOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRentalSummaryOpen(false);
     };
-    const onScrollOrResize = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(updateDock);
-    };
-    updateDock();
-    window.addEventListener("scroll", onScrollOrResize, { passive: true });
-    window.addEventListener("resize", onScrollOrResize);
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", onScrollOrResize);
-    vv?.addEventListener("scroll", onScrollOrResize);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScrollOrResize);
-      window.removeEventListener("resize", onScrollOrResize);
-      vv?.removeEventListener("resize", onScrollOrResize);
-      vv?.removeEventListener("scroll", onScrollOrResize);
-    };
-  }, [mobileSummaryMode]);
-
-  useEffect(() => {
-    if (!mobileSummaryMode) return;
-    const el = mobileStripRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setMobileStripHeight(el.offsetHeight);
-    });
-    ro.observe(el);
-    setMobileStripHeight(el.offsetHeight);
-    return () => ro.disconnect();
-  }, [mobileSummaryMode]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rentalSummaryOpen]);
 
   useEffect(() => {
     if (nights != null) setCalendarRevealed(true);
@@ -1117,14 +1299,14 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
       return false;
     }
     if (fromApiVehicle) {
-      if (!locId.trim() || !uuidLikeRe.test(locId)) {
+      if (!locId.trim() || !isLikelyUuidString(locId)) {
         setErrors({
           dates:
             "Bu araç için alış noktası (ofis) tanımlı değil veya liste yüklenemedi. Sayfayı yenileyin; sorun sürerse araç kaydında varsayılan alış noktası ekleyin.",
         });
         return false;
       }
-      if (!returnLocId.trim() || !uuidLikeRe.test(returnLocId)) {
+      if (!returnLocId.trim() || !isLikelyUuidString(returnLocId)) {
         setErrors({
           dates:
             "Teslim noktası tanımlı değil veya liste yüklenemedi. Sayfayı yenileyin veya farklı teslim seçeneklerini kontrol edin.",
@@ -1132,7 +1314,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         return false;
       }
     }
-    if (bookingCalendarBlockedLoading && uuidLikeRe.test(vehicle.id)) {
+    if (bookingCalendarBlockedLoading && isLikelyUuidString(vehicle.id)) {
       setErrors({
         dates: "Dolu günler yükleniyor; lütfen birkaç saniye sonra tekrar deneyin.",
       });
@@ -1237,6 +1419,34 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         const mergedOpts = [...vehicleOpts, ...reservationOpts];
         const apiOpts = mergedOpts.length > 0 ? mergedOpts : undefined;
 
+        const reservationExtrasForPricing = [...selectedReservationExtraIds].map((tid) => {
+          const t = (reservationExtraTemplates ?? []).find((x) => x.id === tid);
+          return {
+            templateId: tid,
+            title: t?.title?.trim() || "Ek hizmet",
+            priceTry: Number(t?.price) || 0,
+          };
+        });
+        const vehicleOptionsForPricing = [...selectedVehicleOptionIds].map((defId) => {
+          const d = vehicle.rentOptionDefinitions?.find((x) => x.id === defId);
+          return {
+            definitionId: defId,
+            title: d?.title?.trim() || "Araç seçeneği",
+            priceTry: Number(d?.price) || 0,
+          };
+        });
+        const pricingLines = buildRentalRequestPricingLines({
+          nights,
+          vehiclePricePerDayTry: vehicle.pricePerDay,
+          differentDropoff,
+          differentDropoffSurchargeTry,
+          handoverSurchargeEur: selectedReturnHandoverSurchargeEur,
+          abroadUsageFeeTry: abroadUsageFee,
+          planVehicleAbroad,
+          reservationExtras: reservationExtrasForPricing,
+          vehicleOptions: vehicleOptionsForPricing,
+        });
+
         const member = await fetchHasBffMemberSession();
 
         const sa = (sp.get("alis_saat") ?? "").trim();
@@ -1249,14 +1459,15 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         const combinedNote = [timeNote, baseNote].filter(Boolean).join("\n");
 
         const payload: CreateRentalRequestFormPayload = {
-          vehicleId: uuidLikeRe.test(vehicle.id) ? vehicle.id : undefined,
+          vehicleId: isLikelyUuidString(vehicle.id) ? vehicle.id : undefined,
           startDate: pickup,
           endDate: ret,
-          pickupHandoverLocationId: uuidLikeRe.test(locId) ? locId : undefined,
-          returnHandoverLocationId: uuidLikeRe.test(returnLocId) ? returnLocId : undefined,
+          pickupHandoverLocationId: isLikelyUuidString(locId) ? locId : undefined,
+          returnHandoverLocationId: isLikelyUuidString(returnLocId) ? returnLocId : undefined,
           outsideCountryTravel: planVehicleAbroad,
           note: combinedNote || undefined,
           options: apiOpts,
+          pricingLines,
           customer: {
             fullName: fullName.trim(),
             phone: phone.trim(),
@@ -1340,12 +1551,7 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
 
   if (step === 5 && doneRef) {
     return (
-      <motion.div
-        className="mx-auto max-w-lg px-5 py-24 text-center"
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease }}
-      >
+      <div className="mx-auto max-w-lg px-5 py-24 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-sm border border-accent/30 bg-accent/10 text-xl text-accent">
           ✓
         </div>
@@ -1361,14 +1567,13 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
         <AnimatedButton variant="primary" href="/" className="mt-10">
           Ana sayfaya dön
         </AnimatedButton>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6 lg:pb-20">
-      <div className="mt-6 flex flex-col gap-6 lg:flex-row">
-        <div className="flex-1">
+    <div className="relative mx-auto max-w-4xl px-4 pb-8 pt-[var(--header-h)] sm:px-6 lg:pb-20">
+      <div className="mt-6 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <RentIconBackLink
               href={`/arac/${vehicle.id}${sp.toString() ? `?${sp.toString()}` : ""}`}
@@ -1409,25 +1614,10 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
             })}
           </ol>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: 0.35, ease }}
-              className="mt-10"
-            >
+          <div key={step} className="mt-10">
               {step === 1 && (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-text">Tarih seçimi</h2>
-                    <p className="mt-2 text-sm text-text-muted">
-                      Alış noktası arama veya araç sayfasından geldiği için burada değiştirilemez. İsterseniz aracı
-                      farklı bir yere bırakmayı işaretleyip teslim noktasını seçin; ardından takvimden müsait günleri
-                      işaretleyin. Tarihler adres çubuğundaki bağlantıya yazılır.
-                    </p>
-                  </div>
+                  <h2 className="text-xl font-semibold text-text">Tarih seçimi</h2>
 
                   <div className="space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-4 sm:p-5">
                     <h3 className="text-sm font-semibold text-text">Alış / teslim noktası</h3>
@@ -1449,7 +1639,6 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                       onChange={handleReservationDifferentDropoff}
                       disabled={!canChooseDifferentReturn}
                       className="mt-1"
-                      parenthetical={canChooseDifferentReturn && !fromApiVehicle ? "örn. 35$" : undefined}
                     />
                     {fromApiVehicle && canChooseDifferentReturn && apiReturnOptions.length > 0 && !differentDropoff ? (
                       <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
@@ -1469,6 +1658,16 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           value={returnLocId}
                           onChange={(v) => {
                             setCalendarRevealed(true);
+                            const optionRow = returnLocationSelectOptions.find((o) => o.value === v);
+                            const vehicleRow =
+                              vehicle.returnHandoversForBooking?.find((h) => h.id === v) ?? null;
+                            if (process.env.NODE_ENV === "development") {
+                              console.log("[BookingWizard] teslim yeri seçimi", {
+                                selectedId: v,
+                                selectOptionRow: optionRow ?? null,
+                                vehicleReturnHandoverRaw: vehicleRow,
+                              });
+                            }
                             patchQuery((q) => {
                               q.set("lokasyonTeslim", v);
                             });
@@ -1510,15 +1709,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                     </p>
                   )}
 
-                  <AnimatePresence>
-                    {calendarRevealed && (
-                      <motion.div
-                        key="step1-calendar"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.3, ease }}
-                      >
+                  {calendarRevealed ? (
+                      <div>
                         <HeroRentalRangeDatePickers
                           layout="inline"
                           inlineMonthCount={1}
@@ -1540,8 +1732,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                               if (!q.get("lokasyon")) {
                                 const fb =
                                   (fromApiVehicle && apiPickupOptions[0]?.value) ||
-                                  pickupLocations[0]!.id;
-                                q.set("lokasyon", fb);
+                                  vehiclePickupOpts[0]?.value ||
+                                  (isLikelyUuidString(defaultHandoverPickup) ? defaultHandoverPickup : "");
+                                if (fb) q.set("lokasyon", fb);
                               }
                               if (!q.get("lokasyonTeslim")) q.set("lokasyonTeslim", q.get("lokasyon")!);
                             });
@@ -1556,9 +1749,8 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                           }}
                           inlineTitle="Takvim"
                         />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      </div>
+                    ) : null}
                 </div>
               )}
               {step === 2 && (
@@ -1621,10 +1813,9 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                   differentDropoff={differentDropoff}
                   crossBorderFee={crossBorderFee}
                   abroadUsageFee={abroadUsageFee}
-                  vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
                   differentDropoffSurchargeTry={differentDropoffSurchargeTry}
                   differentDropoffDetailLines={differentDropoffDetailLines}
-                  handoverSurchargeLines={handoverSurchargeLines}
+                  fromApiVehicle={fromApiVehicle}
                   extraFeeTry={extraFeeTry}
                   extraFeeLineItems={extraFeeLineItems}
                   extraSummary={combinedExtrasSummary}
@@ -1650,205 +1841,150 @@ export function BookingWizard({ vehicle }: { vehicle: FleetVehicle }) {
                     }
                   }}
                   termsError={errors.terms}
-                  omitPricingAndTerms={mobileSummaryMode && step === 4}
+                  omitPricingAndTerms
                 />
               )}
-            </motion.div>
-          </AnimatePresence>
+            </div>
 
           <div className="mt-10 flex w-full min-w-0 flex-wrap items-center gap-3">
             {step > 1 && <RentIconBackButton onClick={goBack} aria-label="Geri" />}
-            {!(mobileSummaryMode && step === 4) && (
-              <motion.button
+            {step !== 4 && (
+              <button
                 type="button"
                 onClick={() => void goNext()}
                 className="ml-auto rounded-md bg-btn-solid px-6 py-2.5 text-[13px] font-semibold text-btn-solid-fg shadow-sm"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
               >
-                {step === 4 ? (submitting ? "Gönderiliyor..." : "Rezervasyonu gönder") : "Devam et"}
-              </motion.button>
+                Devam et
+              </button>
             )}
           </div>
-        </div>
-
-        <aside className="hidden lg:block lg:w-80">
-          <motion.div
-            className="lg:sticky lg:top-20"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <BookingRentalSummaryCard
-              vehicle={vehicle}
-              nights={nights}
-              pickup={pickup}
-              ret={ret}
-              formatPrice={formatPrice}
-              vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
-              differentDropoffSurchargeTry={differentDropoffSurchargeTry}
-              differentDropoffDetailLines={differentDropoffDetailLines}
-              extraFeeTry={extraFeeTry}
-              extraFeeLineItems={extraFeeLineItems}
-              total={total}
-              differentDropoff={differentDropoff}
-              pickupLocationLabel={pickupSummaryLabel}
-              returnLocationLabel={returnSummaryLabel}
-              pickupTime={alisSaat}
-              returnTime={teslimSaat}
-            />
-          </motion.div>
-        </aside>
       </div>
 
-      {mobileSummaryMode && (
-        <>
-          <div
-            className="shrink-0 lg:hidden"
-            style={{ height: mobileStripHeight }}
-            aria-hidden
-          />
-          <div
-            ref={mobileStripRef}
-            className={`fixed left-0 right-0 z-[45] border-t border-accent/35 bg-bg-deep/96 pt-1 shadow-[0_-10px_40px_rgba(0,0,0,0.28)] backdrop-blur-md lg:hidden ${
-              mobileStripDockBottomPx > 0 ? "pb-2" : "pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-            }`}
-            style={{ bottom: mobileStripDockBottomPx }}
-          >
-            <button
-              type="button"
-              onClick={() => setMobileSummaryOpen(true)}
-              className="mx-auto flex w-full max-w-4xl flex-col items-stretch gap-1 px-4 text-left outline-none ring-accent/40 focus-visible:ring-2 sm:px-6"
+      {!rentalSummaryOpen ? (
+        <button
+          type="button"
+          onClick={() => setRentalSummaryOpen(true)}
+          className="fixed top-1/2 z-[60] flex max-h-[min(70vh,520px)] w-11 -translate-y-1/2 flex-col items-center justify-center gap-2 rounded-l-2xl border border-r-0 border-border-subtle bg-bg-card/95 py-4 text-[10px] font-bold uppercase leading-tight tracking-wide text-text shadow-[0_8px_32px_rgba(15,23,42,0.18)] backdrop-blur-md transition hover:border-accent/35 hover:bg-bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          style={{ right: "max(0px, env(safe-area-inset-right))" }}
+          aria-expanded={false}
+          aria-controls="rental-summary-drawer"
+          aria-label="Kiralama özetini aç"
+        >
+          <span className="flex size-8 items-center justify-center rounded-lg bg-accent/15 text-accent" aria-hidden>
+            <svg
+              viewBox="0 0 24 24"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
             >
-              <span className="flex justify-center py-1" aria-hidden>
-                <span className="flex size-10 items-center justify-center rounded-full border-2 border-accent/55 bg-accent/12 text-accent shadow-[0_0_0_3px_rgba(201,169,98,0.12)]">
-                  <svg
-                    className="size-[18px] translate-y-px"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M7 14.5 12 9.5l5 5" />
-                  </svg>
-                </span>
-              </span>
-              <span className="flex items-center justify-between gap-3 pb-2.5 pt-0.5">
-                <span className="text-sm font-semibold leading-snug text-text">
-                  Kiralama özetini görmek için tıklayınız
-                </span>
-                <span className="shrink-0 text-xs font-bold tabular-nums text-accent">
-                  {formatPrice(total)}
-                </span>
-              </span>
-            </button>
-          </div>
-          <AnimatePresence>
-            {mobileSummaryOpen && (
-              <>
-                <motion.button
-                  key="ms-backdrop"
-                  type="button"
-                  aria-label="Özeti kapat"
-                  className="fixed inset-0 z-[55] bg-black/55 lg:hidden"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.22 }}
-                  onClick={() => setMobileSummaryOpen(false)}
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </span>
+          <span
+            className="select-none px-0.5 text-center text-[9px] text-text-muted [writing-mode:vertical-rl] rotate-180"
+            style={{ textOrientation: "mixed" }}
+          >
+            Özet
+          </span>
+          <span className="max-w-[2.5rem] truncate px-0.5 text-center text-[10px] font-bold tabular-nums leading-none text-accent [writing-mode:vertical-rl] rotate-180">
+            {formatPrice(total)}
+          </span>
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        aria-label={rentalSummaryOpen ? "Özeti kapat" : undefined}
+        className={`fixed inset-0 z-[55] border-0 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300 ease-out ${
+          rentalSummaryOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        tabIndex={rentalSummaryOpen ? 0 : -1}
+        onClick={() => setRentalSummaryOpen(false)}
+      />
+
+      <div
+        id="rental-summary-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-hidden={!rentalSummaryOpen}
+        aria-labelledby="rental-summary-drawer-title"
+        className={`fixed inset-y-0 right-0 z-[60] flex w-full max-w-md flex-col border-l border-border-subtle bg-bg-raised shadow-[-20px_0_60px_rgba(0,0,0,0.22)] transition-transform duration-300 ease-out ${
+          rentalSummaryOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+        }`}
+        style={{ paddingRight: "env(safe-area-inset-right)" }}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-card/90 px-4 py-3.5">
+          <h2 id="rental-summary-drawer-title" className="text-base font-semibold tracking-tight text-text">
+            Kiralama özeti
+          </h2>
+          <button
+            type="button"
+            onClick={() => setRentalSummaryOpen(false)}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:bg-bg-raised hover:text-text"
+          >
+            Kapat
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <BookingRentalSummaryCard
+            vehicle={vehicle}
+            nights={nights}
+            pickup={pickup}
+            ret={ret}
+            formatPrice={formatPrice}
+            abroadUsageFee={abroadUsageFee}
+            differentDropoffDetailLines={differentDropoffDetailLines}
+            differentDropoffSelectedSurchargeEur={differentDropoffPricingMeta?.eur ?? null}
+            extraFeeTry={extraFeeTry}
+            extraFeeLineItems={extraFeeLineItems}
+            total={total}
+            differentDropoff={differentDropoff}
+            pickupLocationLabel={pickupSummaryLabel}
+            returnLocationLabel={returnSummaryLabel}
+            pickupTime={alisSaat}
+            returnTime={teslimSaat}
+          />
+          {step === 4 ? (
+            <div className="mt-6 space-y-4 border-t border-border-subtle pt-5">
+              <label className="flex cursor-pointer gap-3 text-sm text-text-muted">
+                <input
+                  type="checkbox"
+                  checked={terms}
+                  onChange={(e) => {
+                    setTerms(e.target.checked);
+                    if (e.target.checked) {
+                      setErrors((ePrev) => {
+                        const next = { ...ePrev };
+                        delete next.terms;
+                        return next;
+                      });
+                    }
+                  }}
+                  className="mt-1 size-4 accent-accent"
                 />
-                <motion.div
-                  key="ms-sheet"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="mobile-rental-summary-title"
-                  className="fixed bottom-0 left-0 right-0 z-[60] flex max-h-[90vh] flex-col overflow-hidden rounded-t-2xl border border-border-subtle border-b-0 bg-bg-raised shadow-[0_-12px_48px_rgba(0,0,0,0.35)] lg:hidden"
-                  initial={{ y: "108%" }}
-                  animate={{ y: 0 }}
-                  exit={{ y: "108%" }}
-                  transition={{ duration: 0.36, ease }}
-                >
-                  <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle/80 bg-bg-card/95 px-3 pt-2 pb-2">
-                    <div className="flex min-w-0 flex-1 flex-col items-center">
-                      <div className="h-1 w-10 shrink-0 rounded-full bg-text-muted/35" aria-hidden />
-                      <p id="mobile-rental-summary-title" className="mt-2 truncate text-sm font-semibold text-text">
-                        Kiralama özeti
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setMobileSummaryOpen(false)}
-                      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-bg-card hover:text-text"
-                    >
-                      Kapat
-                    </button>
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                    <BookingRentalSummaryCard
-                      vehicle={vehicle}
-                      nights={nights}
-                      pickup={pickup}
-                      ret={ret}
-                      formatPrice={formatPrice}
-                      vehicleBaseSubtotalTry={vehicleBaseSubtotalTry}
-                      differentDropoffSurchargeTry={differentDropoffSurchargeTry}
-                      differentDropoffDetailLines={differentDropoffDetailLines}
-                      extraFeeTry={extraFeeTry}
-                      extraFeeLineItems={extraFeeLineItems}
-                      total={total}
-                      differentDropoff={differentDropoff}
-                      pickupLocationLabel={pickupSummaryLabel}
-                      returnLocationLabel={returnSummaryLabel}
-                      pickupTime={alisSaat}
-                      returnTime={teslimSaat}
-                    />
-                    {step === 4 && (
-                      <div className="mt-4 space-y-4 border-t border-border-subtle pt-4">
-                        <label className="flex cursor-pointer gap-3 text-sm text-text-muted">
-                          <input
-                            type="checkbox"
-                            checked={terms}
-                            onChange={(e) => {
-                              setTerms(e.target.checked);
-                              if (e.target.checked) {
-                                setErrors((ePrev) => {
-                                  const next = { ...ePrev };
-                                  delete next.terms;
-                                  return next;
-                                });
-                              }
-                            }}
-                            className="mt-1 size-4 accent-accent"
-                          />
-                          <span>
-                            <span className="text-text">Kiralama şartları</span>, sigorta kapsamı ve iptal politikasını
-                            okudum, onaylıyorum.
-                          </span>
-                        </label>
-                        {errors.terms && (
-                          <p className="text-xs text-amber-300">{errors.terms}</p>
-                        )}
-                        <motion.button
-                          type="button"
-                          disabled={submitting}
-                          onClick={() => void goNext()}
-                          className="w-full rounded-md bg-btn-solid px-6 py-3 text-[13px] font-semibold text-btn-solid-fg shadow-sm disabled:opacity-60"
-                          whileHover={{ scale: submitting ? 1 : 1.02 }}
-                          whileTap={{ scale: submitting ? 1 : 0.98 }}
-                        >
-                          {submitting ? "Gönderiliyor..." : "Rezervasyonu gönder"}
-                        </motion.button>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </>
-      )}
+                <span>
+                  <span className="text-text">Kiralama şartları</span>, sigorta kapsamı ve iptal politikasını okudum,
+                  onaylıyorum.
+                </span>
+              </label>
+              {errors.terms && <p className="text-xs text-amber-300">{errors.terms}</p>}
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void goNext()}
+                className="w-full rounded-xl bg-btn-solid px-6 py-3.5 text-[13px] font-semibold text-btn-solid-fg shadow-sm transition hover:opacity-95 disabled:opacity-60"
+              >
+                {submitting ? "Gönderiliyor..." : "Rezervasyonu gönder"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2077,7 +2213,7 @@ function StepExtras({
         Genel ek hizmetler sunucu kataloğundan gelir; araca özel ücretli seçenekler ayrı bloktadır. Birden fazla
         seçebilirsiniz.
       </p>
-      <div className="mt-8 space-y-3 rounded-xl border border-border-subtle bg-bg-raised/30 p-4 dark:bg-bg-deep/25">
+      <div className="mt-8 space-y-3 rounded-xl border border-border-subtle bg-bg-raised/30 p-4">
         <h3 className="text-sm font-semibold text-text">Rezervasyon ek hizmetleri</h3>
         {reservationExtraTemplates == null ? (
           <p className="text-[13px] text-text-muted">Ek hizmet listesi yükleniyor…</p>
@@ -2365,10 +2501,9 @@ function StepConfirm({
   differentDropoff,
   crossBorderFee,
   abroadUsageFee,
-  vehicleBaseSubtotalTry,
   differentDropoffSurchargeTry,
   differentDropoffDetailLines,
-  handoverSurchargeLines,
+  fromApiVehicle,
   extraFeeTry,
   extraFeeLineItems,
   extraSummary,
@@ -2396,10 +2531,9 @@ function StepConfirm({
   differentDropoff: boolean;
   crossBorderFee: number;
   abroadUsageFee: number;
-  vehicleBaseSubtotalTry: number;
   differentDropoffSurchargeTry: number;
   differentDropoffDetailLines: ExtraFeeLineItem[];
-  handoverSurchargeLines: { key: string; label: string; amountTry: number }[];
+  fromApiVehicle: boolean;
   extraFeeTry: number;
   extraFeeLineItems: ExtraFeeLineItem[];
   extraSummary: string | null;
@@ -2416,7 +2550,7 @@ function StepConfirm({
   terms: boolean;
   setTerms: (v: boolean) => void;
   termsError?: string;
-  /** Mobilde özet çekmecesinde fiyat + şartlar gösterildiğinde ana sütunda tekrar etmesin. */
+  /** Özet sağ çekmecede; ana sütunda fiyat + şartlar tekrarlanmasın. */
   omitPricingAndTerms?: boolean;
 }) {
   return (
@@ -2424,8 +2558,8 @@ function StepConfirm({
       <h2 className="text-xl font-semibold text-text">Son kontrol</h2>
       {omitPricingAndTerms && (
         <p className="mt-2 text-xs leading-relaxed text-text-muted">
-          Toplam tutar ve kiralama şartlarını onaylamak için ekranın altındaki özeti açın; onay aşamasında panel
-          otomatik açılır.
+          Tutar dökümü, toplam ve kiralama şartları sağdaki «Özet» panelinde; onay adımında panel otomatik açılır.
+          Kapatmak için dışarı tıklayın veya Esc tuşuna basın.
         </p>
       )}
       <div className="mt-6 space-y-4 rounded-xl border border-border-subtle bg-bg-card/60 p-5 text-sm text-text-muted">
@@ -2471,7 +2605,7 @@ function StepConfirm({
             <span className="text-text">Teslim yeri:</span> {returnLocationLabel}
           </p>
         )}
-        {crossBorderFee > 0 && handoverSurchargeLines.length === 0 && (
+        {crossBorderFee > 0 && !(fromApiVehicle && differentDropoff) && (
           <p className="text-[11px] text-amber-200/90">
             Ülkeler arası teslim ek ücreti: {formatPrice(crossBorderFee)}
           </p>
@@ -2488,13 +2622,14 @@ function StepConfirm({
         )}
         {!omitPricingAndTerms && (
           <div className="border-t border-border-subtle pt-3">
-            <Row label="Araç" value={formatPrice(vehicleBaseSubtotalTry)} />
+            <SummaryVehicleRentalPricingRows
+              formatPrice={formatPrice}
+              nights={nights}
+              pricePerDay={vehicle.pricePerDay}
+              abroadUsageFee={abroadUsageFee}
+            />
             {differentDropoff && differentDropoffDetailLines.length > 0 ? (
-              <DifferentDropoffPricingSection
-                formatPrice={formatPrice}
-                surchargeTry={differentDropoffSurchargeTry}
-                lines={differentDropoffDetailLines}
-              />
+              <DifferentDropoffPricingSection formatPrice={formatPrice} lines={differentDropoffDetailLines} />
             ) : null}
             <ExtraFeesPricingSection formatPrice={formatPrice} extraFeeTry={extraFeeTry} lines={extraFeeLineItems} />
             <div className="mt-2 flex justify-between font-semibold text-text">

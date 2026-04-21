@@ -34,10 +34,6 @@ export function VehicleRentalFaqPanel({ className = "" }: { className?: string }
       >
         Sıkça sorulan sorular
       </h2>
-      <p className="mt-1 text-[11px] leading-snug text-text-muted sm:text-[12px]">
-        Kiralama ve araç kullanımına dair özet bilgiler. Kesin koşullar rezervasyon özeti ve sözleşmede
-        yer alır.
-      </p>
       <div className="mt-2.5 space-y-1 sm:mt-3">
         {faqItems.map((item) => (
           <details

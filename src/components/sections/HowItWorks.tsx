@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Reveal } from "@/components/ui/Reveal";
 
 const steps = [
@@ -35,14 +34,11 @@ export function HowItWorks() {
         <div className="mt-10 grid gap-4 md:grid-cols-3 md:gap-5">
           {steps.map((s, i) => (
             <Reveal key={s.title} delay={i * 0.08}>
-              <motion.div
-                className="relative h-full rounded-sm border border-border-subtle bg-bg-card p-5 transition-colors hover:border-accent/40 sm:p-6"
-                whileHover={{ y: -2 }}
-              >
+              <div className="relative h-full rounded-sm border border-border-subtle bg-bg-card p-5 transition-colors hover:border-accent/40 sm:p-6">
                 <span className="text-3xl font-semibold tabular-nums text-text-muted/20">{s.icon}</span>
                 <h3 className="mt-3 text-base font-semibold text-text sm:text-lg">{s.title}</h3>
                 <p className="mt-2 text-[13px] leading-relaxed text-text-muted">{s.body}</p>
-              </motion.div>
+              </div>
             </Reveal>
           ))}
         </div>

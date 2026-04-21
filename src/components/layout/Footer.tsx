@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import { SITE_SUPPORT_PHONE_DISPLAY } from "@/lib/siteContact";
@@ -10,26 +9,16 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer id="iletisim" className="shrink-0 border-t border-border-subtle bg-bg-raised shadow-[inset_0_1px_0_rgba(201,169,98,0.08)] dark:shadow-[inset_0_1px_0_rgba(201,169,98,0.12)]">
+    <footer id="iletisim" className="shrink-0 border-t border-border-subtle bg-bg-raised shadow-[inset_0_1px_0_rgba(201,169,98,0.08)]">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.35 }}
-          >
+          <div>
             <p className="text-base font-semibold text-text">
               <span className="text-accent">Algorycode</span> Rent
             </p>
             <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-text-muted">{t("footer.tagline")}</p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.35, delay: 0.04 }}
-          >
+          </div>
+          <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.explore")}</p>
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
               {(
@@ -46,13 +35,8 @@ export function Footer() {
                 </li>
               ))}
             </ul>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.35, delay: 0.08 }}
-          >
+          </div>
+          <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.support")}</p>
             <ul className="mt-3 space-y-1.5 text-[13px] text-text-muted">
               {(
@@ -69,20 +53,15 @@ export function Footer() {
                 </li>
               ))}
             </ul>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.35, delay: 0.12 }}
-          >
+          </div>
+          <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">{t("footer.contact")}</p>
             <p className="mt-3 text-[13px] text-text-muted">
               concierge@algorycode.rent
               <br />
               {SITE_SUPPORT_PHONE_DISPLAY}
             </p>
-          </motion.div>
+          </div>
         </div>
         <p className="mt-8 border-t border-border-subtle pt-6 text-center text-[11px] text-text-muted">
           {t("footer.rights", { year })}

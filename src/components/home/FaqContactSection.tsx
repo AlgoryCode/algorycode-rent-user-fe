@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import { Reveal } from "@/components/ui/Reveal";
 import { SITE_SUPPORT_PHONE_DISPLAY, SITE_SUPPORT_PHONE_TEL } from "@/lib/siteContact";
@@ -19,7 +18,7 @@ export function FaqContactSection() {
   return (
     <section
       id="sss"
-      className="border-t border-border-subtle bg-bg-raised/40 py-14 sm:py-16 dark:bg-bg-raised/20"
+      className="border-t border-border-subtle bg-bg-raised/40 py-14 sm:py-16"
       aria-labelledby="home-faq-heading"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -35,8 +34,8 @@ export function FaqContactSection() {
             <div className="mt-8 space-y-2">
               {FAQ_KEYS.map((item, i) => (
                 <Reveal key={item.q} delay={i * 0.05}>
-                  <details className="group rounded-xl border border-neutral-200/90 bg-white open:shadow-sm dark:border-border-subtle dark:bg-bg-card">
-                    <summary className="cursor-pointer list-none px-4 py-3.5 text-sm font-semibold text-text outline-none transition-colors marker:content-none hover:bg-neutral-50/80 dark:hover:bg-white/[0.04] sm:px-5 sm:py-4 sm:text-[15px] [&::-webkit-details-marker]:hidden">
+                  <details className="group rounded-xl border border-neutral-200/90 bg-white open:shadow-sm">
+                    <summary className="cursor-pointer list-none px-4 py-3.5 text-sm font-semibold text-text outline-none transition-colors marker:content-none hover:bg-neutral-50/80 sm:px-5 sm:py-4 sm:text-[15px] [&::-webkit-details-marker]:hidden">
                       <span className="flex items-center justify-between gap-3">
                         {t(item.q)}
                         <span className="text-xs font-normal text-text-muted transition-transform group-open:rotate-180">▾</span>
@@ -58,12 +57,7 @@ export function FaqContactSection() {
                 {t("home.contactSection.title")}
               </h2>
               <p className="mt-3 text-sm text-text-muted">{t("home.contactSection.subtitle")}</p>
-              <motion.div
-                className="mt-6 rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-sm dark:border-border-subtle dark:bg-bg-card sm:p-6"
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-              >
+              <div className="mt-6 rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-sm sm:p-6">
                 <p className="text-sm font-medium text-text">concierge@algorycode.rent</p>
                 <a href="mailto:concierge@algorycode.rent" className="mt-2 inline-block text-sm text-accent hover:underline">
                   {t("home.contactSection.emailCta")}
@@ -75,11 +69,11 @@ export function FaqContactSection() {
                 </p>
                 <Link
                   href="/#iletisim"
-                  className="mt-6 inline-flex min-h-11 items-center rounded-lg border border-border-subtle bg-bg-raised/50 px-4 text-sm font-semibold text-text transition-colors hover:border-accent/30 hover:bg-bg-raised dark:hover:bg-white/[0.06]"
+                  className="mt-6 inline-flex min-h-11 items-center rounded-lg border border-border-subtle bg-bg-raised/50 px-4 text-sm font-semibold text-text transition-colors hover:border-accent/30 hover:bg-bg-raised"
                 >
                   {t("home.contactSection.footerLink")}
                 </Link>
-              </motion.div>
+              </div>
             </Reveal>
           </div>
         </div>

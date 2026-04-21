@@ -121,7 +121,7 @@ export function LoginModal({ open, onClose, redirectTo = "/", onLoggedIn }: Prop
           </p>
 
           <form
-            className="mt-5 space-y-3 rounded-xl border border-border-subtle bg-bg-raised/40 p-4 dark:bg-bg-deep/40"
+            className="mt-5 space-y-3 rounded-xl border border-border-subtle bg-bg-raised/40 p-4"
             onSubmit={(e) => {
               e.preventDefault();
               void onLogin();
@@ -156,7 +156,7 @@ export function LoginModal({ open, onClose, redirectTo = "/", onLoggedIn }: Prop
             </button>
           </form>
 
-          <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-bg-raised/40 p-4 dark:bg-bg-deep/40">
+          <div className="mt-3 space-y-2 rounded-xl border border-border-subtle bg-bg-raised/40 p-4">
             <p className="text-xs font-medium text-text-muted">Google ile giriş</p>
             <div className="flex justify-center">
               <GoogleSignInButton onCredential={(t) => void onGoogle(t)} disabled={loading} />

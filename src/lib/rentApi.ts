@@ -1,4 +1,5 @@
 import { getRentGatewayAxios } from "@/lib/gatewayAxios";
+import type { RentalPricedLinePayload } from "@/lib/rentalRequestPricing";
 import type { FleetAvailabilityQuery } from "@/lib/fleetAvailabilityQuery";
 import { fleetAvailabilityToSearchParams } from "@/lib/fleetAvailabilityQuery";
 
@@ -60,6 +61,8 @@ export type ReservationExtraOptionTemplateDto = {
   requiresCoDriverDetails: boolean;
 };
 
+export type { RentalPricedLinePayload } from "@/lib/rentalRequestPricing";
+
 export type CreateRentalRequestFormPayload = {
   vehicleId?: string;
   /** Misafir: JWT’deki session UUID (`rental_requests.user_id`); üye akışında profil ile doldurulabilir. */
@@ -74,6 +77,8 @@ export type CreateRentalRequestFormPayload = {
   note?: string;
   /** Boş veya gönderilmez: seçenek yok. */
   options?: RentalOptionPayload[];
+  /** İstemci fiyat kalemi özeti (denetim); sunucu `rental_request_priced_lines` üretir. */
+  pricingLines?: RentalPricedLinePayload[];
   customer: {
     fullName: string;
     phone: string;

@@ -1,4 +1,5 @@
 import { bookingExtras } from "@/data/extras";
+import { TRY_PER_EUR_REFERENCE } from "@/lib/i18n/config";
 
 export type PriceLine = { label: string; amount: number };
 
@@ -38,13 +39,11 @@ export function crossBorderOneWaySurcharge(
   return 4_500;
 }
 
-const DEFAULT_EUR_TO_TRY = 48;
-
 function resolveEurToTryRate(): number {
   const raw = process.env.NEXT_PUBLIC_EUR_TO_TRY?.trim();
-  if (!raw) return DEFAULT_EUR_TO_TRY;
+  if (!raw) return TRY_PER_EUR_REFERENCE;
   const n = Number(raw.replace(",", "."));
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_EUR_TO_TRY;
+  return Number.isFinite(n) && n > 0 ? n : TRY_PER_EUR_REFERENCE;
 }
 
 /** Sunucunun EUR cinsinden verdiği tutarları vitrin TRY fiyatına çevirir. */

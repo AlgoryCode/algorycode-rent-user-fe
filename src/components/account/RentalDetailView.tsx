@@ -11,9 +11,7 @@ import {
   fetchRentalRequestByReferenceFromRentApi,
   fetchVehicleByIdFromRentApi,
 } from "@/lib/rentApi";
-
-const uuidLikeRe =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { isLikelyUuidString } from "@/lib/uuidLike";
 
 function asObj(v: unknown): Record<string, unknown> {
   return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
@@ -27,6 +25,33 @@ function getString(obj: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+function getNumber(obj: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim()) {
+      const n = Number(v);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+function getPricedLines(raw: Record<string, unknown>): Array<Record<string, unknown>> {
+  const pl = raw.pricedLines ?? raw.priced_lines;
+  if (!Array.isArray(pl)) return [];
+  return pl.filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null);
+}
+
+function lineAmountTry(row: Record<string, unknown>): number {
+  const n = getNumber(row, ["lineAmount", "line_amount"]);
+  return n ?? 0;
+}
+
+function formatTryAmount(n: number): string {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 }).format(n);
+}
+
 function normalizeIsoDate(s: string): string {
   const t = s.trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
@@ -36,7 +61,7 @@ function normalizeIsoDate(s: string): string {
 /** Liste DTO’sunda gömülü `vehicle` olabilir; tekil GET’te çoğu zaman yalnızca `vehicleId` gelir. */
 function resolveVehicleId(raw: Record<string, unknown>): string {
   const vRaw = raw.vehicle;
-  if (typeof vRaw === "string" && uuidLikeRe.test(vRaw.trim())) return vRaw.trim();
+  if (typeof vRaw === "string" && isLikelyUuidString(vRaw)) return vRaw.trim();
   const nested = asObj(vRaw);
   return (
     getString(raw, ["vehicleId", "vehicle_id", "carId", "assignedVehicleId"]) ||
@@ -65,7 +90,7 @@ export function RentalDetailView({ kind, id }: { kind: Kind; id: string }) {
         let row: Record<string, unknown>;
         if (kind === "rental") {
           row = asObj(await fetchRentalByIdFromRentApi(id));
-        } else if (uuidLikeRe.test(id)) {
+        } else if (isLikelyUuidString(id)) {
           row = asObj(await fetchRentalRequestByIdFromRentApi(id));
         } else {
           row = asObj(await fetchRentalRequestByReferenceFromRentApi(id));
@@ -157,6 +182,9 @@ export function RentalDetailView({ kind, id }: { kind: Kind; id: string }) {
   const status = getString(raw ?? {}, ["status", "statusName", "requestStatus"]) || "—";
   const createdAt = getString(raw ?? {}, ["createdAt", "createdDate", "requestDate", "updatedAt"]) || "";
   const note = getString(raw ?? {}, ["note", "notes", "customerNote"]) || "";
+  const pricedLines = raw ? getPricedLines(raw) : [];
+  const rentalNightsVal = raw ? getNumber(raw, ["rentalNights", "rental_nights"]) : null;
+  const pricingTotalTryVal = raw ? getNumber(raw, ["pricingTotalTry", "pricing_total_try"]) : null;
 
   const aracHref =
     vehicleId && startDate && endDate
@@ -237,6 +265,56 @@ export function RentalDetailView({ kind, id }: { kind: Kind; id: string }) {
                 <p className="mt-1 text-sm text-text-muted">Oluşturma: {formatTrDateTime(createdAt)}</p>
               ) : null}
             </section>
+
+            {kind === "request" && pricedLines.length > 0 ? (
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
+                <h2 className="m-0 text-sm font-semibold uppercase tracking-wide text-text-muted">Ücret kalemleri</h2>
+                {(rentalNightsVal != null || pricingTotalTryVal != null) && (
+                  <p className="mt-2 text-xs text-text-muted">
+                    {rentalNightsVal != null ? (
+                      <span>
+                        Gece: <span className="tabular-nums text-text">{rentalNightsVal}</span>
+                        {pricingTotalTryVal != null ? " · " : ""}
+                      </span>
+                    ) : null}
+                    {pricingTotalTryVal != null ? (
+                      <span>
+                        Toplam (TRY):{" "}
+                        <span className="tabular-nums font-medium text-text">{formatTryAmount(pricingTotalTryVal)}</span>
+                      </span>
+                    ) : null}
+                  </p>
+                )}
+                <ul className="mt-3 list-none space-y-3 p-0">
+                  {pricedLines.map((line, i) => {
+                    const title =
+                      getString(line, ["title"]) ||
+                      getString(line, ["lineType", "line_type"]) ||
+                      "Kalem";
+                    const lineType = getString(line, ["lineType", "line_type"]);
+                    const qty = getNumber(line, ["quantity"]) ?? 1;
+                    const amt = lineAmountTry(line);
+                    return (
+                      <li
+                        key={getString(line, ["id"]) || `${i}-${lineType}-${title}`}
+                        className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border-subtle/50 pb-3 last:border-b-0 last:pb-0"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="m-0 text-sm font-medium text-text">{title}</p>
+                          {lineType ? (
+                            <p className="mt-0.5 font-mono text-xs text-text-muted/90">{lineType}</p>
+                          ) : null}
+                          <p className="mt-1 text-xs text-text-muted">
+                            Miktar: <span className="tabular-nums">{qty}</span>
+                          </p>
+                        </div>
+                        <p className="m-0 shrink-0 text-sm font-semibold tabular-nums text-text">{formatTryAmount(amt)}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ) : null}
 
             {(getString(customer, ["fullName", "name"]) ||
               getString(customer, ["email"]) ||

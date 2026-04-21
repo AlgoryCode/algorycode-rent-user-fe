@@ -237,14 +237,12 @@ export function Header() {
                     {t("header.login")}
                   </button>
                 </motion.div>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Link
-                    href="/uye-ol"
-                    className="inline-flex h-10 items-center rounded-md bg-btn-solid px-3.5 text-sm font-semibold text-btn-solid-fg shadow-md transition-[filter,box-shadow] hover:brightness-110 hover:shadow-lg sm:px-4 sm:text-[15px]"
-                  >
-                    {t("header.signUp")}
-                  </Link>
-                </motion.div>
+                <Link
+                  href="/uye-ol"
+                  className="inline-flex h-10 items-center rounded-md bg-btn-solid px-3.5 text-sm font-semibold text-btn-solid-fg shadow-md transition-[filter,box-shadow] hover:brightness-110 hover:shadow-lg active:scale-[0.98] sm:px-4 sm:text-[15px]"
+                >
+                  {t("header.signUp")}
+                </Link>
               </>
             )}
           </div>

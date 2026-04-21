@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
 import { BookingWizard } from "@/components/booking/BookingWizard";
 import { firstSearchParam, isCompleteBookingQuery } from "@/lib/reservationGate";
-import { fetchUnifiedFleet } from "@/lib/rentFleet";
+import { fetchFleetVehicleById } from "@/lib/rentFleet";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -17,7 +17,7 @@ function RezervasyonFallback() {
   );
 }
 
-export default async function RezervasyonPage({ searchParams }: Props) {
+export default async function Page({ searchParams }: Props) {
   const sp = await searchParams;
   const arac = firstSearchParam(sp.arac);
   const alis = firstSearchParam(sp.alis);
@@ -29,8 +29,8 @@ export default async function RezervasyonPage({ searchParams }: Props) {
     redirect("/araclar");
   }
 
-  const vehicles = await fetchUnifiedFleet();
-  const vehicle = vehicles.find((v) => v.id === arac);
+  const aracId = arac!.trim();
+  const vehicle = await fetchFleetVehicleById(aracId);
   if (!vehicle) {
     redirect("/araclar");
   }

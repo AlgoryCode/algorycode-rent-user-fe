@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteLayout } from "@/components/layout/SiteLayout";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import {
   activateTwoFactor,
@@ -22,22 +21,16 @@ import { getStoredAuthUser, readUserIdFromJwt, setStoredAuthUser } from "@/lib/a
 import { fetchRentalRequestsFromRentApi, fetchRentalsFromRentApi } from "@/lib/rentApi";
 import { compareIso } from "@/lib/calendarGrid";
 import { formatTrDate, formatTrDateTime } from "@/lib/dates";
-import {
-  CalendarDaysIcon,
-  Cog6ToothIcon,
-  MagnifyingGlassIcon,
-  UserCircleNavIcon,
-} from "@/components/ui/Icons";
+import { CalendarDaysIcon, MagnifyingGlassIcon, UserCircleNavIcon } from "@/components/ui/Icons";
 import { rentSoftSearchShellClass } from "@/components/ui/rentFeSurfaces";
 
-type AccountTab = "profil" | "guvenlik" | "bildirim" | "tercihler" | "rezervasyonlar";
+type AccountTab = "profil" | "guvenlik" | "bildirim" | "rezervasyonlar";
 
 function isAccountTab(value: string | null): value is AccountTab {
   return (
     value === "profil" ||
     value === "guvenlik" ||
     value === "bildirim" ||
-    value === "tercihler" ||
     value === "rezervasyonlar"
   );
 }
@@ -55,7 +48,6 @@ const ACCOUNT_NAV: readonly { id: AccountTab; title: string; description: string
   { id: "profil", title: "Profil", description: "Kişisel bilgiler ve iletişim" },
   { id: "guvenlik", title: "Güvenlik", description: "Şifre ve iki aşamalı doğrulama" },
   { id: "bildirim", title: "Bildirimler", description: "E-posta ve bildirim tercihleri" },
-  { id: "tercihler", title: "Tercihler", description: "Görünüm ve site deneyimi" },
   { id: "rezervasyonlar", title: "Rezervasyonlarım", description: "" },
 ];
 
@@ -75,7 +67,6 @@ function reservationStatusLabel(code: string | undefined): string {
 function HesabimPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -377,7 +368,7 @@ function HesabimPageContent() {
       <main className="flex min-h-0 w-full flex-1 flex-col-reverse pt-[var(--header-h)] lg:flex-row lg:items-stretch">
         {!loading && profile ? (
           <aside
-            className="flex min-h-0 w-full shrink-0 flex-col overflow-visible border-border-subtle/60 bg-bg-raised/[0.35] px-0 py-6 dark:bg-white/[0.03] sm:py-8 lg:w-72 lg:max-w-[min(100%,20rem)] lg:self-stretch lg:border-b-0 lg:border-r lg:py-0 xl:w-80"
+            className="flex min-h-0 w-full shrink-0 flex-col overflow-visible border-border-subtle/60 bg-bg-raised/[0.35] px-0 py-6 sm:py-8 lg:w-72 lg:max-w-[min(100%,20rem)] lg:self-stretch lg:border-b-0 lg:border-r lg:py-0 xl:w-80"
             aria-label="Hesap menüsü"
           >
             <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:min-h-0">
@@ -406,8 +397,8 @@ function HesabimPageContent() {
                       aria-current={active ? "page" : undefined}
                       className={`flex w-full items-center gap-3 border-b border-border-subtle/45 px-4 py-3 text-left text-sm transition-colors duration-150 last:border-b-0 sm:px-6 lg:px-5 ${
                         active
-                          ? "bg-accent/14 font-semibold text-text dark:bg-accent/[0.14]"
-                          : "text-text-muted hover:bg-bg-card/70 hover:text-text dark:hover:bg-white/[0.05]"
+                          ? "bg-accent/14 font-semibold text-text"
+                          : "text-text-muted hover:bg-bg-card/70 hover:text-text"
                       }`}
                     >
                       <span className={`shrink-0 ${active ? "text-accent" : "text-text-muted"}`}>
@@ -438,19 +429,19 @@ function HesabimPageContent() {
             <div className="min-w-0 flex-1 lg:min-h-0">
               <div className="space-y-6">
             {effectiveSection === "profil" && (
-              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-xs text-text-muted">Ad
-                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">Soyad
-                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={lastName} onChange={(e) => setLastName(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">E-posta
-                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </label>
                   <label className="text-xs text-text-muted">Telefon
-                    <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+                    <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
                   </label>
                 </div>
                 <button type="button" onClick={() => void onSaveProfile()} disabled={saving} className="mt-4 rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">
@@ -459,37 +450,8 @@ function HesabimPageContent() {
               </section>
             )}
 
-            {effectiveSection === "tercihler" && (
-              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-text">Görünüm</p>
-                  <p className="mt-0.5 text-xs text-text-muted">Arayüzü gece veya gündüz modunda kullanın.</p>
-                  <div className="mt-3 inline-flex rounded-lg border border-border-subtle bg-bg-raised/30 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setTheme("light")}
-                      className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
-                        theme === "light" ? "bg-btn-solid text-btn-solid-fg" : "text-text-muted hover:bg-bg-raised/80"
-                      }`}
-                    >
-                      Gündüz
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTheme("dark")}
-                      className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-200 ${
-                        theme === "dark" ? "bg-btn-solid text-btn-solid-fg" : "text-text-muted hover:bg-bg-raised/80"
-                      }`}
-                    >
-                      Gece
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
             {effectiveSection === "bildirim" && (
-              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <ToggleItem label="Önemli e-postalar" checked={notifyEmailImportant} onChange={setNotifyEmailImportant} />
                   <ToggleItem label="Tarama alarmları" checked={notifyScanAlerts} onChange={setNotifyScanAlerts} />
@@ -504,7 +466,7 @@ function HesabimPageContent() {
             )}
 
             {effectiveSection === "rezervasyonlar" && (
-              <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
+              <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Link href="/araclar" className="rounded-lg bg-btn-solid px-3 py-2 text-xs font-semibold text-btn-solid-fg">
                     Yeni Rezervasyon Oluştur
@@ -556,10 +518,10 @@ function HesabimPageContent() {
                     />
                   </div>
                   <label className="text-xs text-text-muted">Başlangıç
-                    <input type="date" value={reservationFrom} onChange={(e) => setReservationFrom(e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2 text-sm text-text dark:border-border-subtle dark:bg-bg-card" />
+                    <input type="date" value={reservationFrom} onChange={(e) => setReservationFrom(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2 text-sm text-text" />
                   </label>
                   <label className="text-xs text-text-muted">Bitiş
-                    <input type="date" value={reservationTo} onChange={(e) => setReservationTo(e.target.value)} className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2 text-sm text-text dark:border-border-subtle dark:bg-bg-card" />
+                    <input type="date" value={reservationTo} onChange={(e) => setReservationTo(e.target.value)} className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2 text-sm text-text" />
                   </label>
                 </div>
 
@@ -637,17 +599,17 @@ function HesabimPageContent() {
 
             {effectiveSection === "guvenlik" && (
               <div className="space-y-6">
-                <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
+                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                   <h2 className="text-base font-semibold text-text">Şifre değiştir</h2>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <label className="text-xs text-text-muted">Mevcut şifre
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
                     </label>
                     <label className="text-xs text-text-muted">Yeni şifre
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                     </label>
                     <label className="text-xs text-text-muted">Yeni şifre (tekrar)
-                      <input type="password" className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={newPasswordRepeat} onChange={(e) => setNewPasswordRepeat(e.target.value)} />
+                      <input type="password" className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={newPasswordRepeat} onChange={(e) => setNewPasswordRepeat(e.target.value)} />
                     </label>
                   </div>
                   <button type="button" onClick={() => void onChangePassword()} disabled={changingPw || !currentPassword || !newPassword || !newPasswordRepeat} className="mt-4 rounded-lg border border-border-subtle bg-transparent px-4 py-2.5 text-sm font-semibold text-text transition-colors duration-200 hover:bg-bg-raised/75 disabled:pointer-events-none disabled:opacity-60">
@@ -655,7 +617,7 @@ function HesabimPageContent() {
                   </button>
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:border-border-subtle/80 dark:bg-bg-card/70 dark:shadow-sm">
+                <section className="rounded-2xl border border-border-subtle/80 bg-bg-card/70 p-5 shadow-sm sm:p-6">
                   <h2 className="text-base font-semibold text-text">2FA (Authenticator)</h2>
                   <p className="mt-1 text-xs text-text-muted">Durum: {profile.twoFactorEnabled ? "Aktif" : "Pasif"}</p>
 
@@ -692,7 +654,7 @@ function HesabimPageContent() {
 
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                     <label className="text-xs text-text-muted">6 haneli kod
-                      <input className="mt-1.5 w-full rounded-lg border border-neutral-200/90 bg-neutral-50/50 px-3 py-2.5 text-sm text-text dark:border-border-subtle dark:bg-bg-card" value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" />
+                      <input className="mt-1.5 w-full rounded-lg border border-border-subtle bg-bg-raised px-3 py-2.5 text-sm text-text" value={twoFaCode} onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" />
                     </label>
                     {!profile.twoFactorEnabled ? (
                       <button type="button" onClick={() => void onActivate2fa()} disabled={twoFaBusy || twoFaCode.length !== 6} className="rounded-lg bg-btn-solid px-4 py-2.5 text-sm font-semibold text-btn-solid-fg disabled:opacity-60">
@@ -890,8 +852,6 @@ function AccountNavLeadIcon({ id }: { id: AccountTab }) {
           />
         </svg>
       );
-    case "tercihler":
-      return <Cog6ToothIcon className={cls} />;
     case "rezervasyonlar":
       return <CalendarDaysIcon className={cls} />;
     default:

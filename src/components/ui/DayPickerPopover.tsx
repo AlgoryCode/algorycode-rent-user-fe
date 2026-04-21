@@ -234,14 +234,14 @@ export function DayPickerPopover({
   const triggerClass =
     triggerClassName ??
     (variant === "hero"
-      ? "flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-neutral-200/90 bg-white px-3 text-left text-[13px] font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 dark:border-white/12 dark:bg-bg-deep/85 dark:text-text"
+      ? "flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-neutral-200/90 bg-white px-3 text-left text-[13px] font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20"
       : compact
         ? `flex h-9 w-full min-w-[8.5rem] items-center justify-between gap-2 px-2.5 text-left text-xs sm:min-w-[9.5rem] sm:text-[13px] ${rentSelectTriggerClass}`
         : `flex h-10 w-full items-center justify-between gap-2 px-3 text-left text-sm ${rentSelectTriggerClass}`);
 
   const panelShellClass =
     variant === "hero"
-      ? "isolate max-h-[min(72vh,560px)] overflow-hidden overflow-y-auto rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_32px_90px_-36px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.04] dark:border-white/10 dark:bg-bg-card dark:ring-white/[0.06]"
+      ? "isolate max-h-[min(72vh,560px)] overflow-hidden overflow-y-auto rounded-2xl border border-neutral-200/90 bg-white p-5 shadow-[0_32px_90px_-36px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.04]"
       : rentFloatingDropdownPanelClass;
 
   const cellLarge = variant === "hero";
@@ -270,8 +270,8 @@ export function DayPickerPopover({
             <div
               className={`mb-4 flex items-center justify-between gap-2 rounded-2xl border px-1 py-1 shadow-inner shadow-black/[0.02] backdrop-blur-md ${
                 variant === "hero"
-                  ? "border-neutral-200/80 bg-neutral-50/90 dark:border-white/10 dark:bg-bg-raised/40"
-                  : "border-border-subtle/25 bg-bg-raised/35 dark:bg-bg-raised/25"
+                  ? "border-neutral-200/80 bg-neutral-50/90"
+                  : "border-border-subtle/25 bg-bg-raised/35"
               }`}
             >
               <button
@@ -283,7 +283,7 @@ export function DayPickerPopover({
                 }}
                 className={`flex size-8 items-center justify-center rounded-xl text-lg transition-colors duration-150 disabled:pointer-events-none disabled:opacity-25 ${
                   variant === "hero"
-                    ? "text-neutral-700 hover:bg-neutral-100 dark:text-text dark:hover:bg-white/10"
+                    ? "text-neutral-700 hover:bg-neutral-100"
                     : "text-text hover:bg-bg-card/55 active:bg-bg-raised/50"
                 }`}
                 aria-label="Geri"
@@ -292,7 +292,7 @@ export function DayPickerPopover({
               </button>
               <span
                 className={`min-w-0 flex-1 truncate px-2 py-1 text-center text-sm font-semibold capitalize ${
-                  variant === "hero" ? "text-neutral-900 dark:text-text" : "text-text"
+                  variant === "hero" ? "text-neutral-900" : "text-text"
                 }`}
               >
                 {ymdStep === "year" ? "Yıl seçin" : ymdStep === "month" ? String(year) : monthTitle}
@@ -311,7 +311,7 @@ export function DayPickerPopover({
                   <div
                     className={`max-h-64 overflow-y-auto rounded-2xl border p-1.5 ${
                       variant === "hero"
-                        ? "border-neutral-200/80 bg-neutral-50/80 dark:border-white/10 dark:bg-bg-raised/30"
+                        ? "border-neutral-200/80 bg-neutral-50/80"
                         : "border-border-subtle/30 bg-bg-raised/25"
                     }`}
                   >
@@ -328,7 +328,7 @@ export function DayPickerPopover({
                             yOpt === year
                               ? "border-accent/35 bg-accent/16 text-accent"
                               : variant === "hero"
-                                ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50 dark:border-white/10 dark:bg-bg-card/50 dark:text-text dark:hover:bg-bg-card/70"
+                                ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50"
                                 : "border-border-subtle/35 bg-bg-card/40 text-text hover:border-accent/25 hover:bg-bg-card/70"
                           }`}
                         >
@@ -341,7 +341,7 @@ export function DayPickerPopover({
                   <div
                     className={`rounded-2xl border p-2 ${
                       variant === "hero"
-                        ? "border-neutral-200/80 bg-neutral-50/80 dark:border-white/10 dark:bg-bg-raised/30"
+                        ? "border-neutral-200/80 bg-neutral-50/80"
                         : "border-border-subtle/30 bg-bg-raised/25"
                     }`}
                   >
@@ -361,7 +361,7 @@ export function DayPickerPopover({
                               ok && month === mi
                                 ? "border-accent/35 bg-accent/16 text-accent"
                                 : variant === "hero"
-                                  ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50 dark:border-white/10 dark:bg-bg-card/50 dark:text-text dark:hover:bg-bg-card/70"
+                                  ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50"
                                   : "border-border-subtle/35 bg-bg-card/40 text-text hover:border-accent/25 hover:bg-bg-card/70"
                             }`}
                           >
@@ -417,8 +417,8 @@ export function DayPickerPopover({
             <div
               className={`mb-4 flex items-center justify-between gap-2 rounded-2xl border px-1 py-1 shadow-inner shadow-black/[0.02] backdrop-blur-md ${
                 variant === "hero"
-                  ? "border-neutral-200/80 bg-neutral-50/90 dark:border-white/10 dark:bg-bg-raised/40"
-                  : "border-border-subtle/25 bg-bg-raised/35 dark:bg-bg-raised/25"
+                  ? "border-neutral-200/80 bg-neutral-50/90"
+                  : "border-border-subtle/25 bg-bg-raised/35"
               }`}
             >
               <button
@@ -433,7 +433,7 @@ export function DayPickerPopover({
                 disabled={yearPickerOpen ? year <= minYear : !canGoPrevCalendar(year, month, minD)}
                 className={`flex size-8 items-center justify-center rounded-xl text-lg transition-colors duration-150 disabled:pointer-events-none disabled:opacity-25 ${
                   variant === "hero"
-                    ? "text-neutral-700 hover:bg-neutral-100 dark:text-text dark:hover:bg-white/10"
+                    ? "text-neutral-700 hover:bg-neutral-100"
                     : "text-text hover:bg-bg-card/55 active:bg-bg-raised/50"
                 }`}
                 aria-label="Önceki ay"
@@ -451,7 +451,7 @@ export function DayPickerPopover({
                   onClick={() => setYearPickerOpen((v) => !v)}
                   className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1 text-center text-sm font-semibold capitalize transition-colors ${
                     variant === "hero"
-                      ? "text-neutral-900 hover:bg-neutral-100 dark:text-text dark:hover:bg-white/10"
+                      ? "text-neutral-900 hover:bg-neutral-100"
                       : "text-text hover:bg-bg-card/55"
                   }`}
                   aria-label="Yıl seçimi"
@@ -471,7 +471,7 @@ export function DayPickerPopover({
                 disabled={yearPickerOpen ? year >= maxYear : !canGoNextCalendar(year, month, maxDate)}
                 className={`flex size-8 items-center justify-center rounded-xl text-lg transition-colors duration-150 disabled:pointer-events-none disabled:opacity-25 ${
                   variant === "hero"
-                    ? "text-neutral-700 hover:bg-neutral-100 dark:text-text dark:hover:bg-white/10"
+                    ? "text-neutral-700 hover:bg-neutral-100"
                     : "text-text hover:bg-bg-card/55 active:bg-bg-raised/50"
                 }`}
                 aria-label="Sonraki ay"
@@ -491,7 +491,7 @@ export function DayPickerPopover({
                   <div
                     className={`max-h-64 overflow-y-auto rounded-2xl border p-1.5 ${
                       variant === "hero"
-                        ? "border-neutral-200/80 bg-neutral-50/80 dark:border-white/10 dark:bg-bg-raised/30"
+                        ? "border-neutral-200/80 bg-neutral-50/80"
                         : "border-border-subtle/30 bg-bg-raised/25"
                     }`}
                   >
@@ -508,7 +508,7 @@ export function DayPickerPopover({
                             y === year
                               ? "border-accent/35 bg-accent/16 text-accent"
                               : variant === "hero"
-                                ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50 dark:border-white/10 dark:bg-bg-card/50 dark:text-text dark:hover:bg-bg-card/70"
+                                ? "border-neutral-200/70 bg-white text-neutral-800 hover:border-accent/30 hover:bg-neutral-50"
                                 : "border-border-subtle/35 bg-bg-card/40 text-text hover:border-accent/25 hover:bg-bg-card/70"
                           }`}
                         >
@@ -560,15 +560,15 @@ export function DayPickerPopover({
           </>
         )}
         {variant === "hero" && onTimeChange != null && timeValue != null ? (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-neutral-200/80 pt-4 dark:border-white/10">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-neutral-200/80 pt-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-500 dark:text-text-muted">Saat</p>
-              <p className="mt-0.5 text-xs text-neutral-400 dark:text-text-muted/80">08:00 – 23:30 arası, 30 dk aralıklarla</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-neutral-500">Saat</p>
+              <p className="mt-0.5 text-xs text-neutral-400">08:00 – 23:30 arası, 30 dk aralıklarla</p>
             </div>
             <select
               value={timeValue}
               onChange={(e) => onTimeChange(e.target.value)}
-              className="h-11 min-w-[7.25rem] cursor-pointer rounded-xl border border-neutral-200/90 bg-neutral-50 px-3 text-[15px] font-semibold tabular-nums text-neutral-900 outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/15 dark:border-white/12 dark:bg-bg-deep/80 dark:text-text"
+              className="h-11 min-w-[7.25rem] cursor-pointer rounded-xl border border-neutral-200/90 bg-neutral-50 px-3 text-[15px] font-semibold tabular-nums text-neutral-900 outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/15"
               aria-label="Saat seçin"
             >
               {!HERO_HALF_HOUR_SLOTS.includes(timeValue) ? (
@@ -622,17 +622,17 @@ export function DayPickerPopover({
       >
         {variant === "hero" && timeValue != null && heroScheduleTitle ? (
           <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left sm:gap-2">
-            <span className="shrink-0 font-semibold text-neutral-600 dark:text-text-muted">{heroScheduleTitle}</span>
+            <span className="shrink-0 font-semibold text-neutral-600">{heroScheduleTitle}</span>
             {heroDatePart ? (
               <>
-                <span className="min-w-0 truncate font-medium text-neutral-900 dark:text-text">{heroDatePart}</span>
-                <span className="shrink-0 text-neutral-300 dark:text-white/25" aria-hidden>
+                <span className="min-w-0 truncate font-medium text-neutral-900">{heroDatePart}</span>
+                <span className="shrink-0 text-neutral-300" aria-hidden>
                   |
                 </span>
-                <span className="shrink-0 tabular-nums text-neutral-800 dark:text-text">{timeValue}</span>
+                <span className="shrink-0 tabular-nums text-neutral-800">{timeValue}</span>
               </>
             ) : (
-              <span className="truncate text-neutral-500 dark:text-text-muted">Tarih seçin</span>
+              <span className="truncate text-neutral-500">Tarih seçin</span>
             )}
           </span>
         ) : (
@@ -645,7 +645,7 @@ export function DayPickerPopover({
           </span>
         )}
         <span
-          className={`shrink-0 opacity-70 ${variant === "hero" ? "text-neutral-500 dark:text-text-muted" : "text-text-muted"}`}
+          className={`shrink-0 opacity-70 ${variant === "hero" ? "text-neutral-500" : "text-text-muted"}`}
           aria-hidden
         >
           ▾
@@ -680,7 +680,7 @@ function DayCell({
   const isToday = iso === today;
 
   const freeCell = large
-    ? "rounded-xl border border-neutral-200/80 bg-white text-neutral-800 shadow-sm hover:border-accent/35 hover:bg-neutral-50 dark:border-white/10 dark:bg-bg-deep/50 dark:text-text dark:hover:bg-bg-raised/50"
+    ? "rounded-xl border border-neutral-200/80 bg-white text-neutral-800 shadow-sm hover:border-accent/35 hover:bg-neutral-50"
     : "rounded-xl border border-border-subtle/50 bg-bg-card/50 text-text shadow-sm backdrop-blur-sm hover:border-accent/28 hover:bg-bg-raised/60";
 
   const textSz = large ? "text-sm sm:text-[15px]" : "text-xs";
@@ -692,7 +692,7 @@ function DayCell({
       onClick={onPick}
       className={`box-border flex h-full w-full min-w-0 items-center justify-center overflow-hidden rounded-xl font-semibold tabular-nums transition-[background-color,border-color,box-shadow,filter] duration-150 active:brightness-95 ${textSz} ${
         disabled
-          ? "cursor-not-allowed text-text-muted/25 dark:text-text-muted/30"
+          ? "cursor-not-allowed text-text-muted/25"
           : selected
             ? "rounded-xl border border-btn-solid/45 bg-btn-solid text-btn-solid-fg shadow-md shadow-btn-solid/25 ring-1 ring-btn-solid/30 hover:brightness-105"
             : `${freeCell} hover:brightness-[1.01] ${isToday ? "ring-2 ring-inset ring-accent/45" : ""}`

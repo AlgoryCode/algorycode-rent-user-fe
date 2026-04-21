@@ -54,9 +54,9 @@ export function RentalDateCalendarModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-[501] flex max-h-[min(92dvh,720px)] w-full max-w-[min(100%,920px)] flex-col overflow-hidden rounded-t-[1.35rem] border border-border-subtle/35 bg-bg-card/[0.92] shadow-[0_28px_64px_-22px_rgba(15,23,42,0.22)] backdrop-blur-2xl ring-1 ring-inset ring-black/[0.04] dark:bg-bg-card/[0.88] dark:shadow-[0_28px_64px_-20px_rgba(0,0,0,0.5)] dark:ring-white/[0.06] sm:max-h-[90vh] sm:rounded-3xl"
+            className="relative z-[501] flex max-h-[min(92dvh,720px)] w-full max-w-[min(100%,920px)] flex-col overflow-hidden rounded-t-[1.35rem] border border-border-subtle/35 bg-bg-card/[0.92] shadow-[0_28px_64px_-22px_rgba(15,23,42,0.22)] backdrop-blur-2xl ring-1 ring-inset ring-black/[0.04] sm:max-h-[90vh] sm:rounded-3xl"
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle/70 px-4 py-3 dark:border-white/10">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle/70 px-4 py-3">
               <h2 id="rent-cal-title" className="text-lg font-semibold tracking-tight text-text">
                 Tarih seçimi
               </h2>

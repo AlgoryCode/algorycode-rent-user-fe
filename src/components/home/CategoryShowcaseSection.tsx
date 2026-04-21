@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
-import { motion } from "framer-motion";
 import type { FleetVehicle } from "@/data/fleet";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import { Reveal } from "@/components/ui/Reveal";
@@ -47,7 +46,7 @@ export function CategoryShowcaseSection({
   return (
     <section
       id="kategoriler"
-      className="relative border-b border-border-subtle bg-bg-raised/35 py-14 sm:py-16 dark:bg-bg-raised/15"
+      className="relative border-b border-border-subtle bg-bg-raised/35 py-14 sm:py-16"
       aria-labelledby="home-category-heading"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -69,10 +68,10 @@ export function CategoryShowcaseSection({
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item, index) => (
             <Reveal key={item.label} delay={index * 0.06} y={20}>
-              <motion.div whileHover={{ y: -3 }} transition={{ type: "spring", stiffness: 380, damping: 26 }}>
+              <div className="transition-transform duration-200 ease-out hover:-translate-y-0.5">
                 <Link
                   href={item.href}
-                  className="group relative block aspect-[16/10] w-full overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-sm ring-1 ring-black/[0.03] transition-[border-color,box-shadow] hover:border-accent/35 hover:shadow-md dark:border-white/10 dark:bg-bg-card dark:ring-white/[0.05]"
+                  className="group relative block aspect-[16/10] w-full overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-sm ring-1 ring-black/[0.03] transition-[border-color,box-shadow] hover:border-accent/35 hover:shadow-md"
                 >
                   <Image
                     src={item.image}
@@ -92,7 +91,7 @@ export function CategoryShowcaseSection({
                     <p className="mt-1 text-xs font-medium text-white/85">{t("home.categorySection.cta")}</p>
                   </div>
                 </Link>
-              </motion.div>
+              </div>
             </Reveal>
           ))}
         </div>

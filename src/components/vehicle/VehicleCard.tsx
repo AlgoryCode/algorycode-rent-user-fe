@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { useI18n } from "@/components/i18n/LocaleProvider";
 import type { FleetVehicle, FuelType } from "@/data/fleet";
 
@@ -19,10 +18,10 @@ function fuelLabel(f: FuelType): string {
 export function VehicleCard({
   vehicle,
   querySuffix = "",
-  revealDelay = 0,
 }: {
   vehicle: FleetVehicle;
   querySuffix?: string;
+  /** Geriye dönük; animasyon kullanılmıyor. */
   revealDelay?: number;
 }) {
   const { formatPrice } = useI18n();
@@ -31,19 +30,13 @@ export function VehicleCard({
   const specLine = `${vites} · ${fuelLabel(vehicle.fuel)} · ${vehicle.seats} koltuk`;
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-24px" }}
-      transition={{ duration: 0.4, delay: revealDelay, ease: [0.22, 1, 0.36, 1] }}
-      className="group"
-    >
+    <article className="group">
       <div className="overflow-hidden rounded-xl border border-border-subtle bg-bg-card shadow-md transition-shadow duration-200 hover:shadow-lg">
         <Link
           href={href}
           className="flex flex-col outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card"
         >
-          <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg-deep/20 sm:aspect-[16/10]">
+          <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg-raised sm:aspect-[16/10]">
             <Image
               src={vehicle.image}
               alt={vehicle.imageAlt}
@@ -83,6 +76,6 @@ export function VehicleCard({
           </div>
         </Link>
       </div>
-    </motion.article>
+    </article>
   );
 }

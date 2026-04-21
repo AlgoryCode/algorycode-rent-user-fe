@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    /** `next/image` quality değerleri — VehicleCard vb. */
+    qualities: [75, 88],
     remotePatterns: [
       {
         protocol: "https",

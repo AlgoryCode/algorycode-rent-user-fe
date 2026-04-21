@@ -19,10 +19,10 @@ const barCell = `${barCellBase} lg:flex-1`;
 /** Lokasyon: flex-1 yok; genişleyince tetikleyicide dev yatay boşluk oluşmaz */
 const barCellLocation = `${barCellBase} lg:flex-none lg:max-w-[min(100%,17.5rem)] xl:max-w-[19rem]`;
 
-const barLabel = "text-xs font-medium text-neutral-500 dark:text-text-muted";
+const barLabel = "text-xs font-medium text-neutral-500";
 
 const barLocationTrigger =
-  "flex h-auto min-h-0 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border-0 bg-transparent px-0 py-0.5 text-left text-[15px] font-semibold leading-snug text-neutral-900 shadow-none outline-none ring-0 transition-colors hover:bg-neutral-50/80 focus-visible:ring-2 focus-visible:ring-accent/25 dark:text-text dark:hover:bg-white/[0.06]";
+  "flex h-auto min-h-0 w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md border-0 bg-transparent px-0 py-0.5 text-left text-[15px] font-semibold leading-snug text-neutral-900 shadow-none outline-none ring-0 transition-colors hover:bg-neutral-50/80 focus-visible:ring-2 focus-visible:ring-accent/25";
 
 const mobileStackCell = "flex min-w-0 flex-col justify-center gap-0.5 px-4 py-3.5 sm:px-5";
 
@@ -34,11 +34,11 @@ function BarDivider() {
   return (
     <>
       <div
-        className="h-px w-full shrink-0 bg-neutral-200/80 dark:bg-white/10 lg:hidden"
+        className="h-px w-full shrink-0 bg-neutral-200/80 lg:hidden"
         aria-hidden
       />
       <div
-        className="hidden w-px shrink-0 self-stretch bg-neutral-200/80 dark:bg-white/10 lg:block"
+        className="hidden w-px shrink-0 self-stretch bg-neutral-200/80 lg:block"
         aria-hidden
       />
     </>
@@ -46,7 +46,7 @@ function BarDivider() {
 }
 
 function MobileDivider() {
-  return <div className="h-px w-full shrink-0 bg-neutral-200/80 dark:bg-white/10" aria-hidden />;
+  return <div className="h-px w-full shrink-0 bg-neutral-200/80" aria-hidden />;
 }
 
 function staticPickupFallback(): HeroHandoverOption[] {
@@ -203,7 +203,7 @@ export function HeroRentalSearch({
   const minDate = toIsoDate(addDays(new Date(), 0));
 
   const searchShell =
-    "overflow-visible rounded-xl border border-neutral-200/90 bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-bg-card";
+    "overflow-visible rounded-xl border border-neutral-200/90 bg-white shadow-[0_12px_40px_-24px_rgba(15,23,42,0.35)]";
 
   return (
     <div
@@ -274,7 +274,7 @@ export function HeroRentalSearch({
           <button
             type="button"
             onClick={submit}
-            className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-b-xl bg-btn-solid px-4 text-sm font-semibold text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
+            className="flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-b-xl bg-btn-solid px-4 text-sm font-semibold text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid"
             aria-label="Araç bul"
           >
             <svg
@@ -359,7 +359,7 @@ export function HeroRentalSearch({
           <button
             type="button"
             onClick={submit}
-            className="flex w-[3.35rem] shrink-0 flex-col items-center justify-center self-stretch rounded-r-xl border-l border-btn-solid-fg/10 bg-btn-solid text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid dark:border-l-white/10 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
+            className="flex w-[3.35rem] shrink-0 flex-col items-center justify-center self-stretch rounded-r-xl border-l border-btn-solid-fg/10 bg-btn-solid text-btn-solid-fg shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14)] transition-[filter,box-shadow,transform] hover:brightness-[1.05] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-btn-solid"
             aria-label="Araç bul"
           >
             <svg
