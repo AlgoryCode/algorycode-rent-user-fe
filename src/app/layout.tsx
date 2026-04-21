@@ -27,6 +27,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${dmSans.variable} font-sans h-full min-h-dvh scroll-smooth antialiased`}
     >
+      <head>
+        <link rel="preconnect" href="https://s3.algorycode.com" crossOrigin="anonymous" />
+      </head>
       <body className="font-sans min-h-dvh">
         <LocaleProvider>
           {children}
