@@ -73,8 +73,9 @@ const chevronSvg =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E\")";
 
 /** Hero arama çubuğu / kart: kompakt tarih + saat; tek portalda iki ay. */
+/** `w-full` + yan saat `select` aynı satırda: flex butonu `shrink-0` saate karşı sıfıra sıkıştırırdı — `flex-1 min-w-0` kalan alanı paylaşır. */
 const searchBarDateBtnClass =
-  "flex h-10 min-h-[44px] w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-neutral-200/90 bg-white px-2.5 text-left text-sm font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 lg:h-9 lg:min-h-0 lg:px-2 lg:text-[13px]";
+  "flex h-10 min-h-[44px] min-w-0 flex-1 cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-neutral-200/90 bg-white px-2.5 text-left text-sm font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 lg:h-9 lg:min-h-0 lg:px-2 lg:text-[13px]";
 
 const searchBarTimeSelectClass =
   "flex h-10 min-h-[44px] w-[5.65rem] shrink-0 cursor-pointer appearance-none items-center rounded-lg border border-neutral-200/90 bg-white bg-[length:10px_6px] bg-[position:right_8px_center] bg-no-repeat px-2.5 pr-8 text-sm font-semibold tabular-nums text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20 lg:h-9 lg:min-h-0 lg:w-[5.35rem]";

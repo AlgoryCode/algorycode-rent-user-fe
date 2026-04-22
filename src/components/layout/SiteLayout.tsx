@@ -2,8 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
-import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
+import { QuestFooter } from "@/components/quest/QuestFooter";
+import { QuestMiniChrome } from "@/components/quest/QuestMiniChrome";
 import type { ReactNode } from "react";
 
 export function SiteLayout({ children }: { children: ReactNode }) {
@@ -12,13 +12,10 @@ export function SiteLayout({ children }: { children: ReactNode }) {
 
   return (
     <PageShell>
-      <div className="theme-canvas theme-canvas-aura text-text relative flex min-h-0 flex-1 flex-col">
-        <div className="aura-layer" aria-hidden />
-        <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
-          <Header />
-          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-          {!hideFooter ? <Footer /> : null}
-        </div>
+      <div className="relative flex min-h-0 flex-1 flex-col bg-background text-foreground">
+        <QuestMiniChrome />
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        {!hideFooter ? <QuestFooter /> : null}
       </div>
     </PageShell>
   );

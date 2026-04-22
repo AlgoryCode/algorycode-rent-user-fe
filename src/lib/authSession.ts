@@ -140,3 +140,16 @@ export function getStoredAuthUser(): AuthUserProfile | null {
     return null;
   }
 }
+
+/**
+ * Üst bar “üye” alanı: yalnızca giriş sonrası yazılan profil varken gösterilir;
+ * sadece çerezde JWT olup profil yoksa misafir gibi davranılır.
+ */
+export function hasRenderableStoredMemberProfile(): boolean {
+  const u = getStoredAuthUser();
+  if (!u) return false;
+  if (typeof u.userId === "number" && Number.isFinite(u.userId)) return true;
+  if (typeof u.email === "string" && u.email.trim() !== "") return true;
+  if (typeof u.fullName === "string" && u.fullName.trim() !== "") return true;
+  return false;
+}

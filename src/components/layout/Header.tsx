@@ -16,11 +16,14 @@ import {
   XMarkIcon,
 } from "@/components/ui/Icons";
 import { fetchHasBffMemberSession } from "@/lib/bff-access-token";
-import { clearClientAuthSession, getStoredAuthUser } from "@/lib/authSession";
+import {
+  clearClientAuthSession,
+  getStoredAuthUser,
+  hasRenderableStoredMemberProfile,
+} from "@/lib/authSession";
 import type { MessageKey } from "@/lib/i18n/messages";
 
 const NAV_LINKS: { href: string; labelKey: MessageKey }[] = [
-  { href: "/araclar", labelKey: "nav.vehicles" },
   { href: "/#nasil", labelKey: "nav.howItWorks" },
   { href: "/#iletisim", labelKey: "nav.contact" },
 ];
@@ -35,19 +38,20 @@ export function Header() {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const profile = isAuthed ? getStoredAuthUser() : null;
+  const showMemberChrome = isAuthed && hasRenderableStoredMemberProfile();
+  const profile = showMemberChrome ? getStoredAuthUser() : null;
   const profileFullName = profile?.fullName?.trim() ?? "";
   const profileEmail = profile?.email?.trim() ?? "";
 
   const initials = useMemo(() => {
-    if (!isAuthed) return "U";
+    if (!showMemberChrome) return "U";
     if (profileFullName) {
       const parts = profileFullName.split(/\s+/).filter(Boolean);
       return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "U";
     }
     if (profileEmail) return profileEmail[0]?.toUpperCase() ?? "U";
     return "U";
-  }, [isAuthed, profileFullName, profileEmail]);
+  }, [showMemberChrome, profileFullName, profileEmail]);
 
   const displayName = profileFullName || profileEmail || t("header.guestUser");
   const displayEmail = profileEmail;
@@ -101,10 +105,10 @@ export function Header() {
   }, [menuOpen]);
 
   const navLinkClass =
-    "rounded-md px-3 py-2.5 text-[15px] font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white md:py-2.5 md:text-[15px] lg:text-[16px]";
+    "cursor-pointer rounded-md px-3 py-2.5 text-[15px] font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white md:py-2.5 md:text-[15px] lg:text-[16px]";
 
   const mobileNavLinkClass =
-    "flex items-center gap-3 rounded-md px-3 py-3.5 text-[16px] font-medium text-white/90 transition-colors hover:bg-white/10";
+    "flex cursor-pointer items-center gap-3 rounded-md px-3 py-3.5 text-[16px] font-medium text-white/90 transition-colors hover:bg-white/10";
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 bg-navy-hero">
@@ -116,7 +120,7 @@ export function Header() {
       />
       <div className="mx-auto flex min-h-[var(--header-h)] max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6 sm:py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5 md:gap-6 lg:gap-8">
-          <Link href="/" className="shrink-0 text-base font-semibold tracking-tight sm:text-lg">
+          <Link href="/" className="shrink-0 cursor-pointer text-base font-semibold tracking-tight sm:text-lg">
             <span className="text-white">Algorycode</span>
             <span className="text-steel"> Rent</span>
           </Link>
@@ -132,7 +136,7 @@ export function Header() {
         <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-md border border-white/20 text-white transition-colors hover:bg-white/10 md:hidden"
+            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-md border border-white/20 text-white transition-colors hover:bg-white/10 md:hidden"
             aria-label={t("header.mobileMenuTitle")}
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
@@ -141,11 +145,11 @@ export function Header() {
           </button>
           <div className="hidden items-center gap-2 sm:gap-2.5 md:flex">
             <LanguageSwitcher tone="navy" />
-            {isAuthed ? (
+            {showMemberChrome ? (
               <>
                 <Link
                   href="/hesabim?section=rezervasyonlar"
-                  className="inline-flex h-10 items-center gap-2 rounded-md border border-white/25 bg-white/5 px-3.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/10"
+                  className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-white/25 bg-white/5 px-3.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/10"
                 >
                   <CalendarDaysIcon className="size-[18px] shrink-0 text-white/85" aria-hidden />
                   {t("header.myReservations")}
@@ -154,7 +158,7 @@ export function Header() {
                   <button
                     type="button"
                     onClick={() => setMenuOpen((v) => !v)}
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-full border border-white/85 bg-white text-[11px] font-semibold tracking-tight text-navy-hero shadow-sm outline-none transition-colors duration-200 hover:bg-white/95 sm:text-xs ${
+                    className={`flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/85 bg-white text-[11px] font-semibold tracking-tight text-navy-hero shadow-sm outline-none transition-colors duration-200 hover:bg-white/95 sm:text-xs ${
                       menuOpen ? "ring-2 ring-white/70" : ""
                     }`}
                     aria-label={t("header.accountMenu")}
@@ -199,7 +203,7 @@ export function Header() {
                         <Link
                           href="/hesabim?section=profil"
                           onClick={() => setMenuOpen(false)}
-                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-white/90 transition-colors duration-150 hover:bg-white/10"
+                          className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-white/90 transition-colors duration-150 hover:bg-white/10"
                           role="menuitem"
                         >
                           <Cog6ToothIcon className="size-[15px] text-white/55" />
@@ -215,7 +219,7 @@ export function Header() {
                               window.location.href = "/";
                             })();
                           }}
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-white/90 transition-colors duration-150 hover:bg-white/10"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-white/90 transition-colors duration-150 hover:bg-white/10"
                           role="menuitem"
                         >
                           <ArrowRightOnRectangleIcon className="size-[15px] text-white/55" />
@@ -228,18 +232,16 @@ export function Header() {
               </>
             ) : (
               <>
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <button
-                    type="button"
-                    onClick={() => setLoginModalOpen(true)}
-                    className="inline-flex h-10 items-center rounded-md border border-white/35 bg-transparent px-3.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/10 sm:px-4 sm:text-[15px]"
-                  >
-                    {t("header.login")}
-                  </button>
-                </motion.div>
+                <button
+                  type="button"
+                  onClick={() => setLoginModalOpen(true)}
+                  className="inline-flex h-10 cursor-pointer items-center rounded-md border border-white/35 bg-transparent px-3.5 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/10 sm:px-4 sm:text-[15px]"
+                >
+                  {t("header.login")}
+                </button>
                 <Link
                   href="/uye-ol"
-                  className="inline-flex h-10 items-center rounded-md bg-btn-solid px-3.5 text-sm font-semibold text-btn-solid-fg shadow-md transition-[filter,box-shadow] hover:brightness-110 hover:shadow-lg active:scale-[0.98] sm:px-4 sm:text-[15px]"
+                  className="inline-flex h-10 cursor-pointer items-center rounded-md border border-white/85 bg-white px-3.5 text-sm font-semibold text-navy-hero shadow-sm transition-colors duration-200 hover:bg-white/95 sm:px-4 sm:text-[15px]"
                 >
                   {t("header.signUp")}
                 </Link>
@@ -256,7 +258,7 @@ export function Header() {
               key="mobile-backdrop"
               type="button"
               aria-label={t("header.closeMenu")}
-              className="fixed inset-x-0 top-[var(--header-h)] bottom-0 z-[42] bg-black/50 md:hidden"
+              className="fixed inset-x-0 top-[var(--header-h)] bottom-0 z-[42] cursor-pointer bg-black/50 md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -278,7 +280,7 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => setMobileNavOpen(false)}
-                  className="inline-flex size-10 items-center justify-center rounded-md text-white transition-colors hover:bg-white/10"
+                  className="inline-flex size-10 cursor-pointer items-center justify-center rounded-md text-white transition-colors hover:bg-white/10"
                   aria-label={t("header.closeMenu")}
                 >
                   <XMarkIcon className="size-6" />
@@ -286,7 +288,7 @@ export function Header() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-                {isAuthed && (
+                {showMemberChrome && (
                   <div className="border-b border-white/10 px-4 pb-5 pt-2">
                     <div className="flex flex-col items-center text-center">
                       <div
@@ -323,7 +325,7 @@ export function Header() {
                 <MobileDrawerLangCurrency />
 
                 <div className="border-t border-white/10 px-1 py-2">
-                  {isAuthed ? (
+                  {showMemberChrome ? (
                     <div className="flex flex-col">
                       <Link
                         href="/hesabim?section=rezervasyonlar"
@@ -371,7 +373,7 @@ export function Header() {
                       </button>
                       <Link
                         href="/uye-ol"
-                        className={`${mobileNavLinkClass} border border-sky-500/40 bg-sky-500/15 text-sky-100 hover:bg-sky-500/25`}
+                        className={`${mobileNavLinkClass} border border-white/85 bg-white font-semibold text-navy-hero shadow-sm hover:bg-white/95`}
                         onClick={() => setMobileNavOpen(false)}
                       >
                         {t("header.signUp")}

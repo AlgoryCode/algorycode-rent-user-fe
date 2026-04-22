@@ -7,9 +7,23 @@ const headlineLeadingStepped =
 
 type Props = {
   className?: string;
+  /** `pageHero`: ana sayfa split hero (Index benzeri). */
+  variant?: "center" | "pageHero";
 };
 
-export function HeroWelcomeHeadline({ className = "" }: Props) {
+export function HeroWelcomeHeadline({ className = "", variant = "center" }: Props) {
+  if (variant === "pageHero") {
+    return (
+      <div className={`max-w-2xl ${className}`}>
+        <h1 className="m-0 p-0 text-4xl font-extrabold tracking-tight text-text md:text-5xl lg:text-6xl leading-[1.05]">
+          En ucuz fiyatlarla
+          <br />
+          <span className="text-navy-hero">araç kiralama</span>
+        </h1>
+      </div>
+    );
+  }
+
   return (
     <div className={`mx-auto w-full max-w-[min(100%,56rem)] xl:max-w-[64rem] 2xl:max-w-[72rem] ${className}`}>
       <h1

@@ -1,5 +1,8 @@
 "use client";
 
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -76,6 +79,11 @@ type Props = {
   /** Varsa, `variant`/`compact` ile hesaplanan tetik sınıfları yerine tam sınıf listesi (örn. hero arama çubuğu). */
   triggerClassName?: string;
   /**
+   * rent-wheel `CarRentalSearch` tetik düzeni: üstte küçük etiket, altta takvim ikonu + `d MMM, EEE` (tr).
+   * Doluysa `hideSurfaceLabel` ile dış `label` satırı kullanılmaz; `label` yalnızca aria için kalır.
+   */
+  carSearchFieldLabel?: string;
+  /**
    * `yearMonthDay`: önce yıl, sonra ay, sonra gün (doğum tarihi vb.).
    * Varsayılan `calendar`: mevcut ay takvimi + başlıktan yıl listesi.
    */
@@ -108,6 +116,7 @@ export function DayPickerPopover({
   hideSurfaceLabel = false,
   formatDisplay,
   triggerClassName,
+  carSearchFieldLabel,
   pickMode = "calendar",
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -231,13 +240,18 @@ export function DayPickerPopover({
 
   const ariaForTrigger = (typeof label === "string" ? label : "").trim() || "Tarih seçin";
 
+  const carSearchTriggerClass =
+    "flex h-auto min-h-0 w-full min-w-[140px] flex-col items-start justify-center rounded-none border-0 bg-transparent px-5 py-4 text-left shadow-none outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
   const triggerClass =
     triggerClassName ??
-    (variant === "hero"
-      ? "flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-neutral-200/90 bg-white px-3 text-left text-[13px] font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20"
-      : compact
-        ? `flex h-9 w-full min-w-[8.5rem] items-center justify-between gap-2 px-2.5 text-left text-xs sm:min-w-[9.5rem] sm:text-[13px] ${rentSelectTriggerClass}`
-        : `flex h-10 w-full items-center justify-between gap-2 px-3 text-left text-sm ${rentSelectTriggerClass}`);
+    (carSearchFieldLabel != null
+      ? carSearchTriggerClass
+      : variant === "hero"
+        ? "flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-neutral-200/90 bg-white px-3 text-left text-[13px] font-medium text-neutral-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-accent/40 focus-visible:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/20"
+        : compact
+          ? `flex h-9 w-full min-w-[8.5rem] items-center justify-between gap-2 px-2.5 text-left text-xs sm:min-w-[9.5rem] sm:text-[13px] ${rentSelectTriggerClass}`
+          : `flex h-10 w-full items-center justify-between gap-2 px-3 text-left text-sm ${rentSelectTriggerClass}`);
 
   const panelShellClass =
     variant === "hero"
@@ -588,7 +602,7 @@ export function DayPickerPopover({
 
   return (
     <div className={`relative ${className}`}>
-      {!compact && label && !hideSurfaceLabel ? (
+      {!compact && label && !hideSurfaceLabel && carSearchFieldLabel == null ? (
         <span className="mb-1 block text-[11px] font-medium text-text-muted">{label}</span>
       ) : null}
       <button
@@ -620,7 +634,19 @@ export function DayPickerPopover({
           setOpen(false);
         }}
       >
-        {variant === "hero" && timeValue != null && heroScheduleTitle ? (
+        {carSearchFieldLabel != null ? (
+          <span className="flex w-full min-w-0 flex-col items-start gap-0.5">
+            <span className="text-xs font-medium text-muted-foreground">{carSearchFieldLabel}</span>
+            <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <CalendarIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              {valD
+                ? formatDisplay != null
+                  ? formatDisplay(valD)
+                  : format(valD, "d MMM, EEE", { locale: tr })
+                : "Seçiniz"}
+            </span>
+          </span>
+        ) : variant === "hero" && timeValue != null && heroScheduleTitle ? (
           <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left sm:gap-2">
             <span className="shrink-0 font-semibold text-neutral-600">{heroScheduleTitle}</span>
             {heroDatePart ? (
@@ -644,12 +670,14 @@ export function DayPickerPopover({
                 : display}
           </span>
         )}
-        <span
-          className={`shrink-0 opacity-70 ${variant === "hero" ? "text-neutral-500" : "text-text-muted"}`}
-          aria-hidden
-        >
-          ▾
-        </span>
+        {carSearchFieldLabel == null ? (
+          <span
+            className={`shrink-0 opacity-70 ${variant === "hero" ? "text-neutral-500" : "text-text-muted"}`}
+            aria-hidden
+          >
+            ▾
+          </span>
+        ) : null}
       </button>
       {open && typeof window !== "undefined" && createPortal(panel, document.body)}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { FleetVehicle } from "@/data/fleet";
 import { pickupLocations } from "@/data/locations";
 import type { HeroHandoverOption } from "@/lib/handoverLocations";
@@ -16,6 +16,7 @@ import {
   type FleetFilterState,
   type SortKey,
 } from "@/lib/fleetFilters";
+import { HeroRentalSearch } from "@/components/sections/HeroRentalSearch";
 import { VehicleCard } from "@/components/vehicle/VehicleCard";
 import { DifferentDropoffToggle } from "@/components/ui/DifferentDropoffToggle";
 import { LocationPinIcon } from "@/components/ui/LocationPinIcon";
@@ -118,46 +119,45 @@ export function AraclarExplore({
 
   return (
     <div className="pb-16 pt-[var(--header-h)]">
-      <div className="relative overflow-hidden border-b border-border-subtle bg-bg-raised px-4 py-10 sm:px-6 sm:py-12">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "linear-gradient(120deg, transparent 40%, rgba(201,169,98,0.35) 50%, transparent 60%)",
-            backgroundSize: "200% 100%",
-          }}
-          aria-hidden
-        />
-        <div className="relative mx-auto max-w-6xl">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-accent">Kürasyon filo</p>
-            <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-[1.12] tracking-tight text-text sm:text-4xl">
-              Filonuzdaki <span className="text-accent">doğru aracı</span> seçin
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-muted sm:text-[15px]">
-              Kurumsal güvenceyle şeffaf günlük fiyatlar; filtreler ve arama URL ile paylaşılabilir. Tarih ve
-              alış / bırakış noktasını soldaki filtrelerde (mobilde &quot;Filtreler&quot;) seçin.
-            </p>
-          </div>
-        </div>
-      </div>
+      <div className="mx-auto flex w-full min-w-0 max-w-[min(100%,110rem)] flex-col gap-5 px-2 py-5 min-[400px]:px-3 sm:gap-6 sm:py-6 md:px-4 md:py-8 lg:px-6 lg:py-10 xl:px-8">
+        <section
+          className="w-full min-w-0 overflow-x-auto overflow-y-visible rounded-lg border border-border-subtle bg-bg-card shadow-sm min-[400px]:rounded-xl sm:rounded-2xl"
+          aria-label="Kiralama araması"
+        >
+          <Suspense
+            fallback={
+              <div
+                className="h-28 w-full animate-pulse rounded-xl bg-muted/30 sm:h-32"
+                aria-hidden
+              />
+            }
+          >
+            <HeroRentalSearch
+              refineListing
+              pageHeroEmbed
+              className="px-1 py-2 min-[400px]:px-2 min-[400px]:py-2.5 sm:px-3 sm:py-4"
+              pickupHandoverOptions={pickupHandoverOptions}
+              returnHandoverOptions={returnHandoverOptions}
+            />
+          </Suspense>
+        </section>
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:flex-row lg:py-10">
-        <aside className="hidden w-full shrink-0 lg:block lg:w-72">
-          <FilterPanel
-            filters={filters}
-            bounds={bounds}
-            categories={categories}
-            pushFilters={pushFilters}
-            clearAllFilters={clearAllFilters}
-            hasActiveFilters={!!hasActiveFilters}
-            pickupLocationOptions={pickupHandoverOptions}
-            returnLocationOptions={returnHandoverOptions}
-          />
-        </aside>
+        <div className="flex min-w-0 flex-col gap-6 lg:flex-row lg:gap-8">
+          <aside className="hidden w-full shrink-0 lg:block lg:w-72">
+            <FilterPanel
+              filters={filters}
+              bounds={bounds}
+              categories={categories}
+              pushFilters={pushFilters}
+              clearAllFilters={clearAllFilters}
+              hasActiveFilters={!!hasActiveFilters}
+              pickupLocationOptions={pickupHandoverOptions}
+              returnLocationOptions={returnHandoverOptions}
+            />
+          </aside>
 
-        <div className="min-w-0 flex-1">
-          <div className="mt-0 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="mt-0 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-text-muted">
                 <span className="font-semibold text-text">{results.length}</span> araç
@@ -238,18 +238,20 @@ export function AraclarExplore({
                 ) : null}
               </div>
             ) : (
-              <div className="mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-4">
+              <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-1 lg:gap-4">
                 {results.map((v, i) => (
                   <VehicleCard
                     key={v.id}
                     vehicle={v}
                     querySuffix={querySuffix}
                     revealDelay={i * 0.06}
-                    imagePriority={i < 6}
+                    imagePriority={i === 0}
+                    layout="responsive"
                   />
                 ))}
               </div>
             )}
+          </div>
         </div>
       </div>
 
@@ -508,10 +510,9 @@ function FilterPanel({
     setMaxPriceDraft(filters.maxPrice != null ? String(filters.maxPrice) : "");
   }, [filters.minPrice, filters.maxPrice]);
 
-  const appliedMinStr = filters.minPrice != null ? String(filters.minPrice) : "";
-  const appliedMaxStr = filters.maxPrice != null ? String(filters.maxPrice) : "";
-  const priceDraftDirty =
-    minPriceDraft.trim() !== appliedMinStr || maxPriceDraft.trim() !== appliedMaxStr;
+  const budgetInputsInvalid =
+    parseOptionalNonNegativeTry(minPriceDraft) === "invalid" ||
+    parseOptionalNonNegativeTry(maxPriceDraft) === "invalid";
 
   const applyBudgetFilter = useCallback(() => {
     const minP = parseOptionalNonNegativeTry(minPriceDraft);
@@ -519,6 +520,18 @@ function FilterPanel({
     if (minP === "invalid" || maxP === "invalid") return;
     pushFilters({ minPrice: minP, maxPrice: maxP });
   }, [maxPriceDraft, minPriceDraft, pushFilters]);
+
+  /** Metin araması gibi: geçerli taslak değişince URL’e bütçe filtresi yansır (geçersiz girişte beklemez). */
+  useEffect(() => {
+    const minP = parseOptionalNonNegativeTry(minPriceDraft);
+    const maxP = parseOptionalNonNegativeTry(maxPriceDraft);
+    if (minP === "invalid" || maxP === "invalid") return;
+    if (minP === filters.minPrice && maxP === filters.maxPrice) return;
+    const id = window.setTimeout(() => {
+      pushFilters({ minPrice: minP, maxPrice: maxP });
+    }, 280);
+    return () => window.clearTimeout(id);
+  }, [minPriceDraft, maxPriceDraft, filters.minPrice, filters.maxPrice, pushFilters]);
 
   return (
     <>
@@ -541,7 +554,7 @@ function FilterPanel({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (priceDraftDirty) applyBudgetFilter();
+                  applyBudgetFilter();
                 }
               }}
             />
@@ -558,7 +571,7 @@ function FilterPanel({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (priceDraftDirty) applyBudgetFilter();
+                  applyBudgetFilter();
                 }
               }}
             />
@@ -672,9 +685,9 @@ function FilterPanel({
       <div className="flex flex-col gap-2">
         <button
           type="button"
-          disabled={!priceDraftDirty}
           onClick={applyBudgetFilter}
-          className="w-full rounded-lg bg-btn-solid py-2.5 text-[13px] font-semibold text-btn-solid-fg transition-opacity disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={budgetInputsInvalid}
+          className="w-full rounded-lg bg-btn-solid py-2.5 text-[13px] font-semibold text-btn-solid-fg transition-[filter,opacity] hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
         >
           Filtrele
         </button>

@@ -26,6 +26,10 @@ type Props = {
   optionLeadingIcon?: ReactNode;
   /** Salt okunur: liste açılmaz, değer gösterilir */
   disabled?: boolean;
+  /** `false`: CarRentalSearch tarzı metin alanı (ok yok) */
+  showChevron?: boolean;
+  /** Varsa, trigger'da gösterilecek custom label (active.label yerine) */
+  triggerLabel?: string;
 };
 
 const HERO_PANEL_Z = 9500;
@@ -43,6 +47,8 @@ export function RentSelect({
   leadingIcon,
   optionLeadingIcon,
   disabled = false,
+  showChevron = true,
+  triggerLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
   const panelOpen = !disabled && open;
@@ -170,30 +176,32 @@ export function RentSelect({
         }}
         className={
           triggerClassName ??
-          `${rentSelectTriggerClass} ${compact ? "h-9" : "h-10"} flex w-full items-center justify-between gap-2 px-3 text-left ${compact ? "text-xs sm:text-[13px]" : "text-sm"} ${disabled ? "cursor-not-allowed opacity-65" : ""}`
+          `${rentSelectTriggerClass} ${compact ? "h-9" : "h-10"} flex w-full items-center ${showChevron ? "justify-between" : "justify-start"} gap-2 px-3 text-left ${compact ? "text-xs sm:text-[13px]" : "text-sm"} ${disabled ? "cursor-not-allowed opacity-65" : ""}`
         }
       >
         <span className="flex min-w-0 items-center gap-2">
           {leadingIcon && <span className="shrink-0 text-neutral-600">{leadingIcon}</span>}
-          <span className="truncate">{active?.label ?? "Seçiniz"}</span>
+          <span className="truncate">{triggerLabel !== undefined ? triggerLabel : (active?.label ?? "Seçiniz")}</span>
           {active?.right && <span className="shrink-0 text-text-muted">({active.right})</span>}
         </span>
-        <span
-          className={`inline-flex shrink-0 text-neutral-500 transition-transform duration-200 ease-out ${panelOpen ? "rotate-180" : ""}`}
-          aria-hidden
-        >
-          <svg
-            className={compact ? "size-3.5" : "size-4"}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {showChevron ? (
+          <span
+            className={`inline-flex shrink-0 text-neutral-500 transition-transform duration-200 ease-out ${panelOpen ? "rotate-180" : ""}`}
+            aria-hidden
           >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </span>
+            <svg
+              className={compact ? "size-3.5" : "size-4"}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
+        ) : null}
       </button>
 
       {dropdownShell === "hero" ? (

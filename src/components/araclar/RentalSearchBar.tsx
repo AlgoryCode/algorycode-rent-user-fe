@@ -112,6 +112,7 @@ export function RentalSearchBar({
                 ariaLabel="Alış yeri"
                 compact
                 className="w-full min-w-[8.5rem] flex-1 sm:min-w-[10rem]"
+                triggerLabel=""
                 leadingIcon={<LocationPinIcon className="size-3.5" />}
                 optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
               />
@@ -175,6 +176,7 @@ export function RentalSearchBar({
                 options={locationOptions}
                 ariaLabel="Alış yeri"
                 className="w-full"
+                triggerLabel={undefined}
                 leadingIcon={<LocationPinIcon className="size-3.5" />}
                 optionLeadingIcon={<LocationPinIcon className="size-3.5" />}
               />

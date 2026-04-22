@@ -28,7 +28,7 @@ export function MobileDrawerLangCurrency() {
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-3.5 text-left text-[16px] font-medium text-white/90 transition-colors hover:bg-white/10"
+          className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-3.5 text-left text-[16px] font-medium text-white/90 transition-colors hover:bg-white/10"
           aria-label={t("lang.currencyAria")}
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}

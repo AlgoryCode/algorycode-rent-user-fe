@@ -1,11 +1,11 @@
 import type { FleetVehicle } from "@/data/fleet";
 import { SiteLayout } from "@/components/layout/SiteLayout";
-import { CategoryShowcaseSection } from "@/components/home/CategoryShowcaseSection";
-import { FaqContactSection } from "@/components/home/FaqContactSection";
+import { QuestAdvantages } from "@/components/quest/QuestAdvantages";
+import { QuestCampaigns } from "@/components/quest/QuestCampaigns";
+import { QuestFaq } from "@/components/quest/QuestFaq";
+import { QuestNewsletter } from "@/components/quest/QuestNewsletter";
 import { FleetSection } from "@/components/sections/FleetSection";
 import { Hero } from "@/components/sections/Hero";
-import { HowItWorks } from "@/components/sections/HowItWorks";
-import { MotivationSection } from "@/components/sections/MotivationSection";
 import {
   buildAraclarPreserveQuery,
   flattenSearchParams,
@@ -14,10 +14,6 @@ import {
 import { fetchHeroHandoverOptions } from "@/lib/handoverLocations";
 import { fetchUnifiedFleet } from "@/lib/rentFleet";
 
-/**
- * `searchParams` + rent API (`fetchUnifiedFleet` / handover) her istekte güncel veri ister;
- * `cookies()` içeren sunucu fetch’leri tam statik ISR ile uyumlu değildir — edge HTML önbelleği yoktur.
- */
 export const dynamic = "force-dynamic";
 
 type Props = {
@@ -25,15 +21,8 @@ type Props = {
 };
 
 /**
- * Ana sayfa modüler bölümler (yukarıdan aşağıya):
- * 1. Navbar → `SiteLayout` / `Header`
- * 2. Hero → `Hero`
- * 3. Kategori vitrin kartları → `CategoryShowcaseSection`
- * 4. Öne çıkan filo → `FleetSection`
- * 5. Teşvik / CTA → `MotivationSection`
- * 6. Nasıl çalışır → `HowItWorks`
- * 7. SSS + iletişim özeti → `FaqContactSection`
- * 8. Footer → `SiteLayout` / `Footer`
+ * Ana sayfa — rent-wheel-quest `Index.tsx` ile aynı blok sırası:
+ * Hero → filo gridi → Kampanyalar → Avantajlar → SSS → Bülten → (Footer SiteLayout)
  */
 export default async function Home({ searchParams }: Props) {
   const raw = searchParams != null ? await searchParams : {};
@@ -51,16 +40,17 @@ export default async function Home({ searchParams }: Props) {
     <SiteLayout>
       <main className="flex min-w-0 flex-col">
         <Hero pickupHandoverOptions={pickupHandoverOptions} returnHandoverOptions={returnHandoverOptions} />
-        <CategoryShowcaseSection vehicles={vehicles} exploreHref={exploreHref} />
         <FleetSection
           vehicles={vehicles}
           exploreHref={exploreHref}
           vehicleCardQuerySuffix={preserveQs}
           hasAvailabilityQuery={Boolean(availability)}
+          gridShowAll
         />
-        <MotivationSection />
-        <HowItWorks />
-        <FaqContactSection />
+        <QuestCampaigns exploreHref={exploreHref} />
+        <QuestAdvantages />
+        <QuestFaq />
+        <QuestNewsletter />
       </main>
     </SiteLayout>
   );
